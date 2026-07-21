@@ -1,0 +1,434 @@
+{
+  "version": 1,
+  "plot": {
+    "pts": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 150,
+        "y": 0
+      },
+      {
+        "x": 150,
+        "y": 90
+      },
+      {
+        "x": 60,
+        "y": 110
+      },
+      {
+        "x": 0,
+        "y": 90
+      }
+    ],
+    "northAngle": 0
+  },
+  "grid": {
+    "cell": 5,
+    "visible": true
+  },
+  "hiddenLayers": [],
+  "elements": [
+    {
+      "kind": "rect",
+      "id": "s-wh-a",
+      "defId": "warehouse",
+      "label": "โกดัง A",
+      "layer": "buildings",
+      "color": "#64748b",
+      "x": 24,
+      "y": 28,
+      "w": 18,
+      "d": 30,
+      "rot": 0
+    },
+    {
+      "kind": "rect",
+      "id": "s-wh-b",
+      "defId": "warehouse",
+      "label": "โกดัง B",
+      "layer": "buildings",
+      "color": "#64748b",
+      "x": 44,
+      "y": 28,
+      "w": 18,
+      "d": 30,
+      "rot": 0
+    },
+    {
+      "kind": "rect",
+      "id": "s-wh-c",
+      "defId": "warehouse",
+      "label": "โกดัง C",
+      "layer": "buildings",
+      "color": "#64748b",
+      "x": 64,
+      "y": 28,
+      "w": 18,
+      "d": 30,
+      "rot": 0
+    },
+    {
+      "kind": "rect",
+      "id": "s-wh-d",
+      "defId": "warehouse",
+      "label": "โกดัง D",
+      "layer": "buildings",
+      "color": "#64748b",
+      "x": 84,
+      "y": 28,
+      "w": 18,
+      "d": 30,
+      "rot": 0
+    },
+    {
+      "kind": "rect",
+      "id": "s-office",
+      "defId": "office",
+      "label": "สำนักงานขาย",
+      "layer": "buildings",
+      "color": "#0ea5e9",
+      "x": 120,
+      "y": 20,
+      "w": 8,
+      "d": 12,
+      "rot": 0
+    },
+    {
+      "kind": "rect",
+      "id": "s-guard",
+      "defId": "guardhouse",
+      "label": "ป้อมยาม",
+      "layer": "buildings",
+      "color": "#f59e0b",
+      "x": 11,
+      "y": 82,
+      "w": 3,
+      "d": 3,
+      "rot": 0
+    },
+    {
+      "kind": "rect",
+      "id": "s-pump",
+      "defId": "pumphouse",
+      "label": "โรงปั๊มน้ำ",
+      "layer": "buildings",
+      "color": "#8b5cf6",
+      "x": 112,
+      "y": 42,
+      "w": 4,
+      "d": 4,
+      "rot": 0
+    },
+    {
+      "kind": "rect",
+      "id": "s-gate",
+      "defId": "gate",
+      "label": "ประตูทางเข้า",
+      "layer": "circulation",
+      "color": "#dc2626",
+      "x": 18,
+      "y": 89.5,
+      "w": 8,
+      "d": 1,
+      "rot": 0
+    },
+    {
+      "kind": "polyline",
+      "id": "s-road",
+      "defId": "road",
+      "label": "ถนนภายใน",
+      "layer": "circulation",
+      "color": "#57534e",
+      "width": 8,
+      "pts": [
+        {
+          "x": 18,
+          "y": 89
+        },
+        {
+          "x": 18,
+          "y": 55
+        },
+        {
+          "x": 110,
+          "y": 55
+        },
+        {
+          "x": 110,
+          "y": 30
+        }
+      ]
+    },
+    {
+      "kind": "polyline",
+      "id": "s-walk",
+      "defId": "walkway",
+      "label": "ทางเดินเท้า",
+      "layer": "circulation",
+      "color": "#a8a29e",
+      "width": 1.5,
+      "pts": [
+        {
+          "x": 116,
+          "y": 26
+        },
+        {
+          "x": 116,
+          "y": 51
+        }
+      ]
+    },
+    {
+      "kind": "point",
+      "id": "s-pole-1",
+      "defId": "pole",
+      "label": "เสาไฟฟ้า",
+      "layer": "utilities",
+      "color": "#78716c",
+      "x": 25,
+      "y": 50,
+      "radius": 0.5
+    },
+    {
+      "kind": "point",
+      "id": "s-pole-2",
+      "defId": "pole",
+      "label": "เสาไฟฟ้า",
+      "layer": "utilities",
+      "color": "#78716c",
+      "x": 50,
+      "y": 50,
+      "radius": 0.5
+    },
+    {
+      "kind": "point",
+      "id": "s-pole-3",
+      "defId": "pole",
+      "label": "เสาไฟฟ้า",
+      "layer": "utilities",
+      "color": "#78716c",
+      "x": 75,
+      "y": 50,
+      "radius": 0.5
+    },
+    {
+      "kind": "point",
+      "id": "s-pole-4",
+      "defId": "pole",
+      "label": "เสาไฟฟ้า",
+      "layer": "utilities",
+      "color": "#78716c",
+      "x": 100,
+      "y": 50,
+      "radius": 0.5
+    },
+    {
+      "kind": "rect",
+      "id": "s-tf",
+      "defId": "transformer",
+      "label": "หม้อแปลง",
+      "layer": "utilities",
+      "color": "#eab308",
+      "x": 106,
+      "y": 47,
+      "w": 3,
+      "d": 2,
+      "rot": 0
+    },
+    {
+      "kind": "point",
+      "id": "s-tank",
+      "defId": "champagnetank",
+      "label": "ถังแชมเปญ",
+      "layer": "utilities",
+      "color": "#06b6d4",
+      "x": 108,
+      "y": 38,
+      "radius": 1.5
+    },
+    {
+      "kind": "polygon",
+      "id": "s-pond",
+      "defId": "pond",
+      "label": "บ่อหน่วงน้ำ",
+      "layer": "utilities",
+      "color": "#38bdf8",
+      "pts": [
+        {
+          "x": 127.5,
+          "y": 65
+        },
+        {
+          "x": 138.5,
+          "y": 65
+        },
+        {
+          "x": 143,
+          "y": 68
+        },
+        {
+          "x": 143,
+          "y": 76
+        },
+        {
+          "x": 138.5,
+          "y": 79
+        },
+        {
+          "x": 127.5,
+          "y": 79
+        },
+        {
+          "x": 123,
+          "y": 76
+        },
+        {
+          "x": 123,
+          "y": 68
+        }
+      ]
+    },
+    {
+      "kind": "polyline",
+      "id": "s-drain",
+      "defId": "drain",
+      "label": "ท่อระบายน้ำ",
+      "layer": "utilities",
+      "color": "#6366f1",
+      "width": 0.6,
+      "pts": [
+        {
+          "x": 20,
+          "y": 60
+        },
+        {
+          "x": 100,
+          "y": 60
+        },
+        {
+          "x": 123,
+          "y": 70
+        }
+      ]
+    },
+    {
+      "kind": "polygon",
+      "id": "s-lawn",
+      "defId": "lawn",
+      "label": "สนามหญ้า",
+      "layer": "landscape",
+      "color": "#4ade80",
+      "pts": [
+        {
+          "x": 62,
+          "y": 65
+        },
+        {
+          "x": 100,
+          "y": 65
+        },
+        {
+          "x": 100,
+          "y": 88
+        },
+        {
+          "x": 62,
+          "y": 92
+        }
+      ]
+    },
+    {
+      "kind": "point",
+      "id": "s-tree-1",
+      "defId": "tree_big",
+      "label": "ต้นไม้ใหญ่",
+      "layer": "landscape",
+      "color": "#16a34a",
+      "x": 35,
+      "y": 62,
+      "radius": 3
+    },
+    {
+      "kind": "point",
+      "id": "s-tree-2",
+      "defId": "tree_big",
+      "label": "ต้นไม้ใหญ่",
+      "layer": "landscape",
+      "color": "#16a34a",
+      "x": 55,
+      "y": 62,
+      "radius": 3
+    },
+    {
+      "kind": "point",
+      "id": "s-tree-3",
+      "defId": "tree_big",
+      "label": "ต้นไม้ใหญ่",
+      "layer": "landscape",
+      "color": "#16a34a",
+      "x": 75,
+      "y": 62,
+      "radius": 3
+    },
+    {
+      "kind": "point",
+      "id": "s-tree-4",
+      "defId": "tree_small",
+      "label": "ต้นไม้เล็ก",
+      "layer": "landscape",
+      "color": "#65a30d",
+      "x": 130,
+      "y": 30,
+      "radius": 1.2
+    },
+    {
+      "kind": "point",
+      "id": "s-tree-5",
+      "defId": "tree_small",
+      "label": "ต้นไม้เล็ก",
+      "layer": "landscape",
+      "color": "#65a30d",
+      "x": 135,
+      "y": 40,
+      "radius": 1.2
+    },
+    {
+      "kind": "polyline",
+      "id": "s-fence",
+      "defId": "fence",
+      "label": "รั้วรอบโครงการ",
+      "layer": "landscape",
+      "color": "#854d0e",
+      "width": 0.2,
+      "pts": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 150,
+          "y": 0
+        },
+        {
+          "x": 150,
+          "y": 90
+        },
+        {
+          "x": 60,
+          "y": 110
+        },
+        {
+          "x": 0,
+          "y": 90
+        },
+        {
+          "x": 0,
+          "y": 0
+        }
+      ]
+    }
+  ]
+}
