@@ -52,9 +52,10 @@ function SingleInspector({ el }: { el: PlacedElement }) {
           <div className="insp-grid">
             <Num label="กว้าง (ม.)" value={el.w} min={0.5} step={0.5} onChange={(w) => edit({ w })} />
             <Num label="ลึก (ม.)" value={el.d} min={0.5} step={0.5} onChange={(d) => edit({ d })} />
+            <Num label="สูง (ม.)" value={el.h ?? defById(el.defId)?.h ?? 4} min={1} step={0.5} onChange={(h) => edit({ h })} />
+            <Num label="หมุน (°)" value={el.rot} step={5} onChange={(rot) => edit({ rot: ((rot % 360) + 360) % 360 })} />
             <Num label="X (ม.)" value={el.x} onChange={(x) => edit({ x })} />
             <Num label="Y (ม.)" value={el.y} onChange={(y) => edit({ y })} />
-            <Num label="หมุน (°)" value={el.rot} step={5} onChange={(rot) => edit({ rot: ((rot % 360) + 360) % 360 })} />
           </div>
           <div className="insp-readout">พื้นที่ {fmt(el.w * el.d)} ตร.ม.</div>
         </>

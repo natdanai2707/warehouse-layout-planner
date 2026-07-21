@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type { ElementDef, GridConfig, LayerId, LayoutFile, PlacedElement, Plot, Vec2 } from './types'
-import { bboxOf, makeSeedPolygon, polygonCentroid, rotateDeg, snap } from './geometry'
+import { makeSeedPolygon, polygonCentroid, rotateDeg, snap } from './geometry'
 import { SAMPLE_LAYOUT } from './sample'
 
 const STORAGE_KEY = 'warehouse-site-planner-v1'
@@ -35,12 +35,6 @@ export type Tool =
   | { type: 'draw'; def: ElementDef; pts: Vec2[] } // polygon & polyline: click to add vertices
   | { type: 'editPlot' } // drag plot boundary vertices
 
-export interface View {
-  cx: number // world x at viewport center (m)
-  cy: number
-  ppm: number // pixels per meter (zoom)
-}
-
 interface SiteState {
   plot: Plot
   grid: GridConfig
@@ -51,9 +45,15 @@ interface SiteState {
   tool: Tool
   ghost: Vec2 | null // cursor position in world coords while placing/drawing
   guides: { gx: number | null; gy: number | null } // alignment guide lines while dragging
-  view: View
-  viewport: { w: number; h: number } // canvas size in px (for zoom-to-fit)
   showLabels: boolean
+
+  // elements only drag when move mode is armed (prevents accidental touch-moves)
+  moveArmed: boolean
+  setMoveArmed: (v: boolean) => void
+
+  // current orthographic camera zoom in px/m (for the scale bar overlay)
+  camZoom: number
+  setCamZoom: (v: number) => void
 
   past: Snapshot[]
   future: Snapshot[]
@@ -105,10 +105,9 @@ interface SiteState {
   insertPlotVertex: (i: number, p: Vec2) => void
   deletePlotVertex: (i: number) => void
 
-  // view
-  setView: (patch: Partial<View>) => void
-  setViewport: (w: number, h: number) => void
-  zoomFit: () => void
+  // view: bumping viewKey remounts the camera rig, which re-frames the plot
+  viewKey: number
+  resetView: () => void
 
   // files
   importLayout: (file: LayoutFile) => void
@@ -147,9 +146,11 @@ export const useStore = create<SiteState>()(
     tool: { type: 'select' },
     ghost: null,
     guides: { gx: null, gy: null },
-    view: { cx: 50, cy: 40, ppm: 6 },
-    viewport: { w: 800, h: 600 },
     showLabels: true,
+    moveArmed: false,
+    setMoveArmed: (v) => set({ moveArmed: v }),
+    camZoom: 6,
+    setCamZoom: (v) => set({ camZoom: v }),
     past: [],
     future: [],
 
@@ -225,7 +226,7 @@ export const useStore = create<SiteState>()(
       if (def.geom === 'rect') {
         el = {
           kind: 'rect', id: uid(), defId: def.id, label: def.labelTh, layer: def.layer, color: def.color,
-          x: pos.x, y: pos.y, w: def.w ?? 10, d: def.d ?? 10, rot: 0,
+          x: pos.x, y: pos.y, w: def.w ?? 10, d: def.d ?? 10, h: def.h ?? 4, rot: 0,
         }
       } else if (def.geom === 'point') {
         el = {
@@ -417,18 +418,8 @@ export const useStore = create<SiteState>()(
 
     // ---- view ----
 
-    setView: (patch) => set({ view: { ...get().view, ...patch } }),
-    setViewport: (w, h) => set({ viewport: { w, h } }),
-
-    zoomFit: () => {
-      const { plot, viewport } = get()
-      if (plot.pts.length === 0) return
-      const bb = bboxOf(plot.pts)
-      const w = Math.max(10, bb.maxX - bb.minX)
-      const h = Math.max(10, bb.maxY - bb.minY)
-      const ppm = Math.min((viewport.w * 0.85) / w, (viewport.h * 0.85) / h)
-      set({ view: { cx: (bb.minX + bb.maxX) / 2, cy: (bb.minY + bb.maxY) / 2, ppm } })
-    },
+    viewKey: 0,
+    resetView: () => set({ viewKey: get().viewKey + 1 }),
 
     // ---- files ----
 
@@ -436,7 +427,7 @@ export const useStore = create<SiteState>()(
       if (!file || !file.plot || !Array.isArray(file.elements)) throw new Error('Invalid layout file')
       get().pushHistory()
       set({ ...normalizeFile(file), selectedIds: [], tool: { type: 'select' }, ghost: null })
-      get().zoomFit()
+      get().resetView()
     },
 
     clearAll: () => {

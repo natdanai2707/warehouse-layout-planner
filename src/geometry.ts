@@ -104,11 +104,27 @@ export function bboxOf(pts: Vec2[]): BBox {
 
 export const elementBBox = (el: PlacedElement): BBox => bboxOf(elementVertices(el))
 
-// An element is flagged (red outline) when any of its defining vertices falls
-// outside the plot boundary. It is NEVER auto-moved or deleted.
+function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const len2 = dx * dx + dy * dy
+  const t = len2 === 0 ? 0 : clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / len2, 0, 1)
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
+}
+
+// An element is flagged (red tint) when any of its defining vertices falls
+// outside the plot boundary. Points sitting ON the boundary line (fences,
+// gates) are tolerated. Flagged elements are NEVER auto-moved or deleted.
 export function isOutsideBoundary(el: PlacedElement, plotPts: Vec2[]): boolean {
   if (plotPts.length < 3) return false
-  return elementVertices(el).some((p) => !pointInPolygon(p, plotPts))
+  const EDGE_TOL = 0.35
+  return elementVertices(el).some((p) => {
+    if (pointInPolygon(p, plotPts)) return false
+    for (let i = 0; i < plotPts.length; i++) {
+      if (distToSegment(p, plotPts[i], plotPts[(i + 1) % plotPts.length]) <= EDGE_TOL) return false
+    }
+    return true
+  })
 }
 
 export function elementArea(el: PlacedElement): number {

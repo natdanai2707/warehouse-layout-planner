@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { SiteCanvas } from './components/SiteCanvas'
+import { Scene } from './components/Scene'
 import { Toolbar } from './components/Toolbar'
 import { Palette } from './components/Palette'
 import { Inspector } from './components/Inspector'
@@ -12,6 +12,12 @@ export default function App() {
   const panelRight = useStore((s) => s.panelRight)
   const setPanelLeft = useStore((s) => s.setPanelLeft)
   const setPanelRight = useStore((s) => s.setPanelRight)
+  const selectedIds = useStore((s) => s.selectedIds)
+  const toolType = useStore((s) => s.tool.type)
+  const moveArmed = useStore((s) => s.moveArmed)
+  const setMoveArmed = useStore((s) => s.setMoveArmed)
+  const rotateSelected = useStore((s) => s.rotateSelected)
+  const removeSelected = useStore((s) => s.removeSelected)
 
   // Global shortcuts: R rotate 45°, D duplicate, Delete remove, Esc cancel,
   // Enter finish polyline/polygon, G grid, L labels, F zoom-fit, Ctrl+Z/Y undo/redo
@@ -61,7 +67,7 @@ export default function App() {
           break
         case 'f':
         case 'F':
-          s.zoomFit()
+          s.resetView()
           break
       }
     }
@@ -75,12 +81,29 @@ export default function App() {
       <div className="main">
         <Palette />
         <div className="canvas-col">
-          <SiteCanvas />
+          <Scene />
           {/* mobile-only drawer toggles */}
           <div className="fab-row">
             <button onClick={() => setPanelLeft(!panelLeft)}>☰ องค์ประกอบ</button>
             <button onClick={() => setPanelRight(!panelRight)}>📋 แก้ไข / สรุป</button>
           </div>
+          {/* quick actions for the selection — move must be armed explicitly so
+              orbiting the camera can never drag objects around (gym pattern) */}
+          {selectedIds.length > 0 && toolType === 'select' && (
+            <div className="quick-actions">
+              <button className={moveArmed ? 'on' : ''} onClick={() => setMoveArmed(!moveArmed)}>
+                ✥ ย้าย{moveArmed ? ': เปิด' : ''}
+              </button>
+              <button onClick={rotateSelected}>↻ 45°</button>
+              <button onClick={() => setPanelRight(true)}>✎ แก้ไข</button>
+              <button className="danger" onClick={removeSelected}>
+                🗑 ลบ
+              </button>
+            </div>
+          )}
+          {moveArmed && selectedIds.length > 0 && (
+            <div className="move-hint">ลากชิ้นที่เลือกเพื่อย้าย (ปิดปุ่มย้ายเพื่อหมุนมุมมอง)</div>
+          )}
         </div>
         <div className={`right${panelRight ? ' open' : ''}`}>
           <button className="drawer-close" onClick={() => setPanelRight(false)}>

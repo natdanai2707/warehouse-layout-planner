@@ -21,14 +21,18 @@ export interface ElementDef {
   icon: string // emoji shown in the palette and on point markers
   w?: number // rect: default width (m)
   d?: number // rect: default depth (m)
+  h?: number // rect: default height (m) for the 3D block
+  roof?: boolean // rect: draw a low gable roof on top (warehouses)
   radius?: number // point: marker radius (m)
+  pointStyle?: 'tree' | 'pole' | 'tank' | 'elevated' // point: 3D shape variant
   lineWidth?: number // polyline: default width (m)
+  lineHeight?: number // polyline: extrusion height (m); fences are tall, roads flat
   polySize?: Vec2 // polygon: default bounding size of the seeded shape (m)
   fillOpacity?: number // override the default fill opacity
   showArea?: boolean // print the footprint area on the element
   flowArrows?: boolean // polyline: draw flow-direction arrows (drains)
-  dashed?: boolean // polyline: dashed stroke (fences)
-  centerline?: boolean // polyline: dashed white centerline (roads)
+  dashed?: boolean // polyline: dashed stroke in the 2D plan export (fences)
+  centerline?: boolean // polyline: dashed white centerline in the 2D plan export (roads)
 }
 
 interface PlacedBase {
@@ -45,6 +49,7 @@ export interface PlacedRect extends PlacedBase {
   y: number // world center y (m)
   w: number
   d: number
+  h?: number // building height (m); falls back to the catalog default
   rot: number // degrees, clockwise
 }
 

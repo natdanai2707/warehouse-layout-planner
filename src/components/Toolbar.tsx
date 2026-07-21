@@ -122,7 +122,7 @@ export function Toolbar() {
         <button className={showLabels ? 'on' : ''} onClick={() => s().toggleLabels()} title="L">
           ป้าย
         </button>
-        <button onClick={() => s().zoomFit()} title="F — ซูมให้เห็นทั้งแปลง">
+        <button onClick={() => s().resetView()} title="F — กลับมุมมองมาตรฐานเห็นทั้งแปลง">
           ⛶ พอดีจอ
         </button>
       </div>

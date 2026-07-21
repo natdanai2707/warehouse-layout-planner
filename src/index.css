@@ -221,20 +221,62 @@ button:disabled {
   overflow: hidden;
 }
 
-.canvas-wrap > svg {
-  position: absolute;
-  inset: 0;
+/* floating labels above 3D objects (drei <Html>) */
+.obj-label {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid #d4cfc3;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #2b2926;
+  transform: translateY(-2px);
 }
 
-.north-arrow {
+.obj-label.sel {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+.obj-label.warn {
+  border-color: #dc2626;
+  color: #b42318;
+}
+
+.north-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: #b42318;
+  text-shadow: 0 0 3px #fff;
+}
+
+.quick-actions {
   position: absolute;
-  top: 10px;
-  right: 12px;
-  background: rgba(255, 255, 255, 0.85);
+  bottom: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.94);
   border: 1px solid #ddd8cd;
-  border-radius: 8px;
-  padding: 2px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  z-index: 40;
+}
+
+.move-hint {
+  position: absolute;
+  bottom: 98px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2b2926;
+  color: #fff;
+  border-radius: 999px;
+  padding: 5px 12px;
   pointer-events: none;
+  white-space: nowrap;
+  z-index: 40;
 }
 
 .scale-bar {
