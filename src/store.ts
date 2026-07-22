@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import type { ElementDef, GridConfig, LayerId, LayoutFile, PlacedElement, Plot, Vec2 } from './types'
-import { makeSeedPolygon, polygonCentroid, rotateDeg, snap } from './geometry'
+import type { ElementDef, GridConfig, LayerId, LayoutFile, PlacedElement, Plot, RefImage, Vec2 } from './types'
+import { dist, makeSeedPolygon, polygonCentroid, rotateDeg, snap } from './geometry'
 import { SAMPLE_LAYOUT } from './sample'
 
 const STORAGE_KEY = 'warehouse-site-planner-v1'
@@ -27,6 +27,7 @@ const DEFAULT_GRID: GridConfig = { cell: 5, visible: true }
 interface Snapshot {
   plot: Plot
   elements: PlacedElement[]
+  refImage: RefImage | null
 }
 
 export type Tool =
@@ -34,12 +35,14 @@ export type Tool =
   | { type: 'place'; def: ElementDef } // rect & point: ghost follows the cursor
   | { type: 'draw'; def: ElementDef; pts: Vec2[] } // polygon & polyline: click to add vertices
   | { type: 'editPlot' } // drag plot boundary vertices
+  | { type: 'calibrate'; pts: Vec2[] } // ref image: click two points, enter real distance
 
 interface SiteState {
   plot: Plot
   grid: GridConfig
   elements: PlacedElement[]
   hiddenLayers: LayerId[]
+  refImage: RefImage | null
 
   selectedIds: string[]
   tool: Tool
@@ -95,6 +98,13 @@ interface SiteState {
   rotateSelected: () => void
   setGuides: (gx: number | null, gy: number | null) => void
 
+  // reference aerial photo underlay
+  attachRefImage: (img: RefImage) => void
+  updateRefImage: (patch: Partial<RefImage>) => void // continuous edits (sliders/drag): no history push
+  editRefImage: (patch: Partial<RefImage>) => void // discrete edits: pushes history
+  removeRefImage: () => void
+  calibrateRefImage: (p1: Vec2, p2: Vec2, realDist: number) => void
+
   // plot — these rewrite ONLY the boundary polygon; element coordinates are
   // absolute world meters and MUST stay untouched (see plotIndependence test)
   setPlotRect: (w: number, d: number) => void
@@ -115,12 +125,13 @@ interface SiteState {
   loadSample: () => void
 }
 
-function normalizeFile(file: LayoutFile): Pick<SiteState, 'plot' | 'grid' | 'elements' | 'hiddenLayers'> {
+function normalizeFile(file: LayoutFile): Pick<SiteState, 'plot' | 'grid' | 'elements' | 'hiddenLayers' | 'refImage'> {
   return {
     plot: { ...DEFAULT_PLOT, ...file.plot },
     grid: { ...DEFAULT_GRID, ...file.grid },
     elements: file.elements ?? [],
     hiddenLayers: file.hiddenLayers ?? [],
+    refImage: file.refImage ?? null,
   }
 }
 
@@ -160,35 +171,37 @@ export const useStore = create<SiteState>()(
     setPanelRight: (v) => set({ panelRight: v }),
 
     pushHistory: () => {
-      const { plot, elements, past } = get()
+      const { plot, elements, refImage, past } = get()
       set({
-        past: [...past.slice(-(HISTORY_LIMIT - 1)), cloneSnap({ plot, elements })],
+        past: [...past.slice(-(HISTORY_LIMIT - 1)), cloneSnap({ plot, elements, refImage })],
         future: [],
       })
     },
 
     undo: () => {
-      const { past, future, plot, elements } = get()
+      const { past, future, plot, elements, refImage } = get()
       if (past.length === 0) return
       const prev = past[past.length - 1]
       set({
         past: past.slice(0, -1),
-        future: [...future, cloneSnap({ plot, elements })],
+        future: [...future, cloneSnap({ plot, elements, refImage })],
         plot: prev.plot,
         elements: prev.elements,
+        refImage: prev.refImage ?? null,
         selectedIds: [],
       })
     },
 
     redo: () => {
-      const { past, future, plot, elements } = get()
+      const { past, future, plot, elements, refImage } = get()
       if (future.length === 0) return
       const next = future[future.length - 1]
       set({
         future: future.slice(0, -1),
-        past: [...past, cloneSnap({ plot, elements })],
+        past: [...past, cloneSnap({ plot, elements, refImage })],
         plot: next.plot,
         elements: next.elements,
+        refImage: next.refImage ?? null,
         selectedIds: [],
       })
     },
@@ -363,6 +376,53 @@ export const useStore = create<SiteState>()(
 
     setGuides: (gx, gy) => set({ guides: { gx, gy } }),
 
+    // ---- reference aerial photo ----
+
+    attachRefImage: (img) => {
+      get().pushHistory()
+      set({ refImage: img, tool: { type: 'select' } })
+    },
+
+    updateRefImage: (patch) => {
+      const { refImage } = get()
+      if (!refImage) return
+      set({ refImage: { ...refImage, ...patch } })
+    },
+
+    editRefImage: (patch) => {
+      if (!get().refImage) return
+      get().pushHistory()
+      get().updateRefImage(patch)
+    },
+
+    removeRefImage: () => {
+      if (!get().refImage) return
+      get().pushHistory()
+      set({ refImage: null, tool: get().tool.type === 'calibrate' ? { type: 'select' } : get().tool })
+    },
+
+    // Two-point calibration (AutoCAD-style): the user clicked p1 and p2 on the
+    // photo and told us the real distance between them. Rescale the image so
+    // that distance is true, keeping the measured midpoint fixed in place.
+    calibrateRefImage: (p1, p2, realDist) => {
+      const { refImage } = get()
+      if (!refImage) return
+      const cur = dist(p1, p2)
+      if (cur < 0.01 || realDist <= 0) return
+      const factor = realDist / cur
+      const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
+      get().pushHistory()
+      set({
+        refImage: {
+          ...refImage,
+          width: refImage.width * factor,
+          x: mid.x + (refImage.x - mid.x) * factor,
+          y: mid.y + (refImage.y - mid.y) * factor,
+        },
+        tool: { type: 'select' },
+      })
+    },
+
     // ---- plot actions: ONLY the boundary changes, elements are never touched ----
 
     setPlotRect: (w, d) => {
@@ -444,23 +504,29 @@ export const useStore = create<SiteState>()(
 // ---- auto-save to localStorage (debounced), mirroring the gym planner ----
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 useStore.subscribe(
-  (s) => [s.plot, s.grid, s.elements, s.hiddenLayers] as const,
-  ([plot, grid, elements, hiddenLayers]) => {
+  (s) => [s.plot, s.grid, s.elements, s.hiddenLayers, s.refImage] as const,
+  ([plot, grid, elements, hiddenLayers, refImage]) => {
     clearTimeout(saveTimer)
     saveTimer = setTimeout(() => {
+      const file: LayoutFile = { version: FILE_VERSION, plot, grid, hiddenLayers, elements, refImage }
       try {
-        const file: LayoutFile = { version: FILE_VERSION, plot, grid, hiddenLayers, elements }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(file))
       } catch {
-        // storage full / unavailable — ignore
+        // storage full (large photo) — save the layout without the image so
+        // the user's actual work is never lost
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...file, refImage: null }))
+        } catch {
+          // storage unavailable — ignore
+        }
       }
     }, 300)
   },
 )
 
 export function exportLayout(): LayoutFile {
-  const { plot, grid, elements, hiddenLayers } = useStore.getState()
-  return { version: FILE_VERSION, plot, grid, hiddenLayers, elements }
+  const { plot, grid, elements, hiddenLayers, refImage } = useStore.getState()
+  return { version: FILE_VERSION, plot, grid, hiddenLayers, elements, refImage }
 }
 
 // handy for debugging / automated UI tests

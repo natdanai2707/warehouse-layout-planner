@@ -3,6 +3,7 @@ import { Scene } from './components/Scene'
 import { Toolbar } from './components/Toolbar'
 import { Palette } from './components/Palette'
 import { Inspector } from './components/Inspector'
+import { RefImagePanel } from './components/RefImagePanel'
 import { LayersPanel } from './components/LayersPanel'
 import { StatsPanel } from './components/StatsPanel'
 import { useStore } from './store'
@@ -110,6 +111,7 @@ export default function App() {
             ✕ ปิด
           </button>
           <Inspector />
+          <RefImagePanel />
           <LayersPanel />
           <StatsPanel />
         </div>

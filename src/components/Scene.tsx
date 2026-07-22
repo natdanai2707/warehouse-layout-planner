@@ -41,6 +41,7 @@ type Gesture =
   | { mode: 'height'; id: string; pushed: boolean }
   | { mode: 'plotVertex'; i: number; pushed: boolean }
   | { mode: 'vertex'; id: string; i: number; pushed: boolean }
+  | { mode: 'imageMove'; start: Vec2; imgStart: Vec2; pushed: boolean }
 
 const gestureRef: { current: Gesture | null } = { current: null }
 
@@ -208,6 +209,13 @@ function DragController() {
         s.updateElement(g.id, { pts } as Partial<PlacedElement>)
         return
       }
+
+      if (g.mode === 'imageMove') {
+        pushOnce(g)
+        // free (unsnapped) move — aerial photos rarely align to the grid
+        s.updateRefImage({ x: g.imgStart.x + (p.x - g.start.x), y: g.imgStart.y + (p.y - g.start.y) })
+        return
+      }
     }
 
     const onUp = () => {
@@ -291,6 +299,91 @@ function PlotGround() {
         <lineSegments geometry={gridGeo} position={[0, 0.03, 0]}>
           <lineBasicMaterial color="#aaa294" transparent opacity={0.35} />
         </lineSegments>
+      )}
+    </group>
+  )
+}
+
+// The aerial-photo underlay: a textured plane flat on the ground, movable when
+// unlocked, with adjustable opacity/size/rotation (AutoCAD attach-image style)
+function RefImagePlane() {
+  const refImage = useStore((s) => s.refImage)
+  const controls = useThree((s) => s.controls) as { enabled?: boolean } | null
+  const texture = useMemo(() => {
+    if (!refImage?.dataUrl) return null
+    const t = new THREE.TextureLoader().load(refImage.dataUrl)
+    t.colorSpace = THREE.SRGBColorSpace
+    t.anisotropy = 4
+    return t
+    // reload only when the image itself changes, not on move/resize
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refImage?.dataUrl])
+
+  if (!refImage || !refImage.visible || !texture) return null
+  const w = refImage.width
+  const h = refImage.width * refImage.aspect
+
+  const onDown = (e: ThreeEvent<PointerEvent>) => {
+    const s = useStore.getState()
+    if (s.tool.type !== 'select' || e.button !== 0 || refImage.locked) return
+    e.stopPropagation()
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+    const p = new THREE.Vector3()
+    const start = e.ray.intersectPlane(plane, p) ? { x: p.x, y: p.z } : { x: e.point.x, y: e.point.z }
+    gestureRef.current = { mode: 'imageMove', start, imgStart: { x: refImage.x, y: refImage.y }, pushed: false }
+    if (controls) controls.enabled = false
+  }
+
+  return (
+    <group position={[refImage.x, 0.02, refImage.y]} rotation-y={(-refImage.rotation * Math.PI) / 180}>
+      <mesh rotation-x={-Math.PI / 2} onPointerDown={onDown}>
+        <planeGeometry args={[w, h]} />
+        <meshBasicMaterial map={texture} transparent opacity={refImage.opacity} depthWrite={false} />
+      </mesh>
+      {!refImage.locked && (
+        <Line
+          points={[
+            new THREE.Vector3(-w / 2, 0.05, -h / 2),
+            new THREE.Vector3(w / 2, 0.05, -h / 2),
+            new THREE.Vector3(w / 2, 0.05, h / 2),
+            new THREE.Vector3(-w / 2, 0.05, h / 2),
+            new THREE.Vector3(-w / 2, 0.05, -h / 2),
+          ]}
+          color="#f59e0b"
+          lineWidth={2}
+          dashed
+          dashSize={2}
+          gapSize={1.2}
+        />
+      )}
+    </group>
+  )
+}
+
+// Markers + rubber line while measuring a known distance on the photo
+function CalibratePreview() {
+  const tool = useStore((s) => s.tool)
+  const ghost = useStore((s) => s.ghost)
+  if (tool.type !== 'calibrate') return null
+  const pts = [...tool.pts]
+  if (ghost && pts.length === 1) pts.push(ghost)
+  return (
+    <group>
+      {tool.pts.map((p, i) => (
+        <mesh key={i} position={[p.x, 0.4, p.y]}>
+          <sphereGeometry args={[0.7, 12, 10]} />
+          <meshBasicMaterial color="#f59e0b" depthTest={false} />
+        </mesh>
+      ))}
+      {pts.length === 2 && (
+        <Line
+          points={pts.map((p) => new THREE.Vector3(p.x, 0.4, p.y))}
+          color="#f59e0b"
+          lineWidth={3}
+          dashed
+          dashSize={1.5}
+          gapSize={1}
+        />
       )}
     </group>
   )
@@ -547,12 +640,28 @@ function SceneContent() {
       s.addDrawPoint(p)
       return
     }
+    if (s.tool.type === 'calibrate') {
+      const pts = [...s.tool.pts, p]
+      if (pts.length < 2) {
+        s.setTool({ type: 'calibrate', pts })
+        return
+      }
+      // second click: ask for the real distance and rescale the photo
+      const answer = window.prompt('ระยะจริงระหว่างสองจุดนี้ (เมตร) / Real distance between the two points (m):')
+      const realDist = answer ? parseFloat(answer) : NaN
+      if (!Number.isNaN(realDist) && realDist > 0) {
+        s.calibrateRefImage(pts[0], pts[1], realDist)
+      } else {
+        s.setTool({ type: 'select' })
+      }
+      return
+    }
     if (s.tool.type === 'select' && !gestureRef.current) s.select(null)
   }
 
   const onCatcherMove = (e: ThreeEvent<PointerEvent>) => {
     const s = useStore.getState()
-    if (s.tool.type === 'place' || s.tool.type === 'draw') s.setGhost(groundRay(e))
+    if (s.tool.type === 'place' || s.tool.type === 'draw' || s.tool.type === 'calibrate') s.setGhost(groundRay(e))
   }
 
   const selectedRect =
@@ -585,6 +694,8 @@ function SceneContent() {
       <hemisphereLight intensity={0.35} groundColor="#c8bfae" />
 
       <PlotGround />
+      <RefImagePlane />
+      <CalibratePreview />
       <NorthArrow />
 
       {LAYERS.filter((l) => !hiddenLayers.includes(l.id)).map((layer) => (
@@ -694,7 +805,11 @@ export function Scene() {
         ? `คลิกเพิ่มจุด ${tool.def.labelTh} (${tool.pts.length} จุด) · ดับเบิลคลิก/Enter จบ · Esc ยกเลิก`
         : tool.type === 'editPlot'
           ? 'ลากจุดสีส้มแก้ขอบเขตแปลง · จุดขาวเพิ่มจุด · ดับเบิลคลิกลบจุด'
-          : null
+          : tool.type === 'calibrate'
+            ? tool.pts.length === 0
+              ? '📏 ปรับสเกลภาพ: คลิกจุดที่ 1 บนสิ่งที่รู้ระยะจริง (เช่น มุมรั้ว) · Esc ยกเลิก'
+              : '📏 คลิกจุดที่ 2 แล้วกรอกระยะจริงเป็นเมตร'
+            : null
 
   return (
     <div className="canvas-wrap">

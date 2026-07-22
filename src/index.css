@@ -342,8 +342,18 @@ button:disabled {
 
 .inspector,
 .layers,
-.stats {
+.stats,
+.refimg {
   margin-bottom: 18px;
+}
+
+.refimg h2 {
+  font-size: 13px;
+  margin: 2px 0 8px;
+}
+
+.refimg input[type='range'] {
+  width: 120px;
 }
 
 .insp-empty {

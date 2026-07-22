@@ -107,10 +107,18 @@ export function buildExportSvg(): string {
     .map(elementSvg)
     .join('\n')
 
+  // embed the aerial photo under the plan, same placement as on screen
+  const ri = s.refImage
+  const refImageSvg =
+    ri && ri.visible
+      ? `<image href="${ri.dataUrl}" x="${ri.x - ri.width / 2}" y="${ri.y - (ri.width * ri.aspect) / 2}" width="${ri.width}" height="${ri.width * ri.aspect}" opacity="${ri.opacity}" preserveAspectRatio="none" transform="rotate(${ri.rotation} ${ri.x} ${ri.y})"/>`
+      : ''
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${w} ${h}" font-family="'Segoe UI','Sukhumvit Set','Noto Sans Thai',sans-serif" style="background:#ffffff">
 <defs><marker id="flow" markerUnits="userSpaceOnUse" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto"><path d="M0.5 0.5 L3.5 2 L0.5 3.5 Z" fill="#6366f1"/></marker></defs>
 <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#ffffff"/>
-<path d="${path(s.plot.pts, true)}" fill="#f3efe4" stroke="#8a8474" stroke-width="0.4" stroke-dasharray="2 1.2"/>
+${refImageSvg}
+<path d="${path(s.plot.pts, true)}" fill="#f3efe4" fill-opacity="${ri && ri.visible ? 0.15 : 1}" stroke="#8a8474" stroke-width="0.4" stroke-dasharray="2 1.2"/>
 ${elements}
 <g transform="rotate(${s.plot.northAngle} ${naX} ${naY})">
   <path d="M${naX} ${naY - 5} L${naX + 2} ${naY + 4} L${naX} ${naY + 2} L${naX - 2} ${naY + 4} Z" fill="#b42318"/>

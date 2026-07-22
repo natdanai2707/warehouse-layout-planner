@@ -88,10 +88,29 @@ export interface GridConfig {
   visible: boolean
 }
 
+/**
+ * Reference underlay image (aerial photo of the real site), like AutoCAD's
+ * attached image / Fusion 360's canvas: lies flat on the ground under the
+ * layout, freely movable/scalable/rotatable, with adjustable transparency,
+ * and re-calibratable against a known real-world distance at any time.
+ */
+export interface RefImage {
+  dataUrl: string // the image itself (downscaled JPEG data URL, persisted)
+  x: number // world center x (m)
+  y: number // world center y (m)
+  width: number // world width (m); height = width * aspect
+  aspect: number // source image height / width
+  rotation: number // degrees, clockwise
+  opacity: number // 0..1
+  visible: boolean
+  locked: boolean // locked = clicks pass through, image cannot be dragged
+}
+
 export interface LayoutFile {
   version: number
   plot: Plot
   grid: GridConfig
   hiddenLayers: LayerId[]
   elements: PlacedElement[]
+  refImage?: RefImage | null
 }

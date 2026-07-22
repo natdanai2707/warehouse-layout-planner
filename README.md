@@ -5,6 +5,7 @@ Macro-scale 3D site layout planner for warehouse/industrial rental projects on a
 ## Features
 
 - **Isometric 3D scene**: orbit/pan/zoom camera, warehouses with gable roofs, trees, tanks, poles as simple 3D massing models; drag-resize arrows (W/D/H) like the gym planner.
+- **Aerial photo underlay (canvas)**: attach a photo of the real site like AutoCAD's attached image / Fusion 360's canvas — it lies flat under the layout with adjustable transparency, size, position and rotation; drag it when unlocked, lock it when aligned. **📏 ปรับสเกล** calibrates the true scale at any time: click two points on the photo with a known real distance (fence line, road width), type the meters, and the photo rescales about the measured span. Saved into the layout JSON (downscaled) and embedded in the 2D plan SVG export.
 - **Free-form land plot**: enter width × depth in meters, enter area in ไร่, or reshape the boundary polygon by hand (drag vertices, white midpoints to add, double-click to delete). Rotate the plot, set the north bearing (3D north arrow on the ground). Live plot area in ตร.ม. and ไร่-งาน-ตร.วา.
 - **Plot independence (the core guarantee)**: resizing or reshaping the plot NEVER moves, rescales or deletes placed objects — they keep absolute world coordinates. Anything left outside the new boundary is tinted red, only as a flag. Proven by `src/__tests__/plotIndependence.test.ts`.
 - **Data-driven palette** (Thai/English): warehouses, office, guard house, coverway, pump house · roads/walkways with adjustable width, gates · poles, transformer, tanks, retention pond, drainage with flow arrows · lawns, gardens, trees, fences.
@@ -41,6 +42,13 @@ A layout file (see [`sample/demo-layout.json`](sample/demo-layout.json) for a fu
   },
   "grid": { "cell": 5, "visible": true }, // grid spacing in meters
   "hiddenLayers": [],                     // e.g. ["landscape"]
+  "refImage": {                           // optional aerial photo underlay
+    "dataUrl": "data:image/jpeg;base64,…", // downscaled JPEG
+    "x": 75, "y": 55,                      // world center (m)
+    "width": 220,                          // world width (m); height = width × aspect
+    "aspect": 0.75, "rotation": 0,
+    "opacity": 0.7, "visible": true, "locked": false
+  },
   "elements": [
     // rect: buildings, gates, transformers… (h = 3D height, optional)
     { "kind": "rect", "id": "…", "defId": "warehouse", "label": "โกดัง A",
