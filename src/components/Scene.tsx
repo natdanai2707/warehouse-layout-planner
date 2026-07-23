@@ -103,11 +103,25 @@ function WheelZoom() {
       return raycaster.ray.intersectPlane(plane, hit) ? hit.clone() : null
     }
 
+    // Zoom bounds derived from the plot + viewport so the site can never shrink
+    // to an invisible speck on the terrain (which reads as a blank screen) nor
+    // zoom in past all detail. Recomputed each scroll — plot size can change.
+    const zoomBounds = () => {
+      const bb = bboxOf(useStore.getState().plot.pts)
+      const dim = Math.max(20, bb.maxX - bb.minX, bb.maxY - bb.minY)
+      const r = el.getBoundingClientRect()
+      const vpMin = Math.max(200, Math.min(r.width, r.height))
+      // min: the plot's largest side always covers >= ~34% of the viewport
+      // max: generous zoom-in (largest side ~40× the viewport)
+      return { min: (0.34 * vpMin) / dim, max: (40 * vpMin) / dim }
+    }
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const before = groundAt(e.clientX, e.clientY)
       const factor = Math.exp(-e.deltaY * 0.0015) // smooth, direction-correct
-      camera.zoom = Math.max(0.6, Math.min(120, camera.zoom * factor))
+      const { min, max } = zoomBounds()
+      camera.zoom = Math.max(min, Math.min(max, camera.zoom * factor))
       camera.updateProjectionMatrix()
       const after = groundAt(e.clientX, e.clientY)
       if (before && after) {
@@ -338,10 +352,12 @@ function PlotGround() {
 
   return (
     <group>
-      {/* surrounding terrain */}
+      {/* surrounding terrain — a distinct "land" tone (not the UI beige) so a
+          zoomed-out view never reads as a blank screen; large enough to always
+          fill the frame at any zoom */}
       <mesh position={[0, -0.06, 0]} rotation-x={-Math.PI / 2} receiveShadow>
-        <planeGeometry args={[4000, 4000]} />
-        <meshStandardMaterial color="#d6d2c6" />
+        <planeGeometry args={[40000, 40000]} />
+        <meshStandardMaterial color="#aeb79a" />
       </mesh>
       {/* the land plot */}
       {shapeGeo && (
@@ -840,7 +856,7 @@ function SceneContent() {
         onPointerDown={onCatcherDown}
         onPointerMove={onCatcherMove}
       >
-        <planeGeometry args={[4000, 4000]} />
+        <planeGeometry args={[40000, 40000]} />
         <meshBasicMaterial visible={false} />
       </mesh>
     </>
