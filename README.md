@@ -16,7 +16,7 @@ Macro-scale 3D site layout planner for warehouse/industrial rental projects on a
 
 ## Controls
 
-Drag = orbit · right-drag / two-finger = pan · scroll = zoom · click = select (Shift adds) · **✥ ย้าย** arms drag-move for the selection
+Drag = orbit · right-drag / two-finger = pan · **scroll = zoom toward the cursor** (works in every mode, including while placing/drawing) · click = select (Shift adds) · **✥ ย้าย** arms drag-move for the selection
 
 `R` rotate 45° · `D` duplicate · `Delete` remove · `Esc` cancel/deselect · `Enter` finish line/area · `G` grid · `L` labels · `F` reset view · `Ctrl+Z` / `Ctrl+Y` undo/redo
 

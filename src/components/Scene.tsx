@@ -70,9 +70,66 @@ function CameraRig() {
         near={-2000}
         far={4000}
       />
-      <OrbitControls makeDefault target={center} maxPolarAngle={Math.PI / 2.05} />
+      {/* built-in wheel zoom is off; WheelZoom does cursor-centered zoom in every mode */}
+      <OrbitControls makeDefault target={center} maxPolarAngle={Math.PI / 2.05} enableZoom={false} />
     </>
   )
+}
+
+// Cursor-centered scroll zoom that stays active in ALL modes (including while
+// placing/drawing, when OrbitControls is disabled). Keeps the ground point
+// under the pointer fixed on screen, like AutoCAD / Fusion.
+function WheelZoom() {
+  const gl = useThree((s) => s.gl)
+  const camera = useThree((s) => s.camera) as THREE.OrthographicCamera
+  const controlsAny = useThree((s) => s.controls) as
+    | { target?: THREE.Vector3; update?: () => void }
+    | null
+
+  useEffect(() => {
+    const el = gl.domElement
+    const raycaster = new THREE.Raycaster()
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+    const hit = new THREE.Vector3()
+
+    // world point on the ground under the given client pixel (null if none)
+    const groundAt = (clientX: number, clientY: number): THREE.Vector3 | null => {
+      const r = el.getBoundingClientRect()
+      const ndc = new THREE.Vector2(
+        ((clientX - r.left) / r.width) * 2 - 1,
+        -((clientY - r.top) / r.height) * 2 + 1,
+      )
+      raycaster.setFromCamera(ndc, camera)
+      return raycaster.ray.intersectPlane(plane, hit) ? hit.clone() : null
+    }
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const before = groundAt(e.clientX, e.clientY)
+      const factor = Math.exp(-e.deltaY * 0.0015) // smooth, direction-correct
+      camera.zoom = Math.max(0.6, Math.min(120, camera.zoom * factor))
+      camera.updateProjectionMatrix()
+      const after = groundAt(e.clientX, e.clientY)
+      if (before && after) {
+        // shift camera + orbit target so the same ground point stays under the cursor
+        const dx = before.x - after.x
+        const dz = before.z - after.z
+        camera.position.x += dx
+        camera.position.z += dz
+        const t = controlsAny?.target
+        if (t) {
+          t.x += dx
+          t.z += dz
+          controlsAny?.update?.()
+        }
+      }
+    }
+
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [gl, camera, controlsAny])
+
+  return null
 }
 
 // Publishes the ortho zoom (≈ px per meter) for the scale-bar overlay
@@ -823,6 +880,7 @@ export function Scene() {
         <group key={`rig-${viewKey}`}>
           <CameraRig />
         </group>
+        <WheelZoom />
         <ZoomTracker />
         <DragController />
         <SceneContent />
