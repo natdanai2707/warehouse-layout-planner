@@ -138,3 +138,27 @@ describe('aerial photo underlay', () => {
     expect(useStore.getState().refImage).toBeNull()
   })
 })
+
+describe('project save/load includes the attached photo', () => {
+  it('exportLayout → importLayout round-trips the photo with its calibration', async () => {
+    const { exportLayout } = await import('../store')
+    const s = useStore.getState()
+    s.attachRefImage({
+      dataUrl: 'data:image/jpeg;base64,roundtrip',
+      x: 12, y: 34, width: 256, aspect: 0.6,
+      rotation: 22, opacity: 0.45, visible: true, locked: true,
+    })
+    const file = exportLayout()
+    expect(file.refImage?.dataUrl).toBe('data:image/jpeg;base64,roundtrip')
+    // wipe everything, then load the saved file back
+    useStore.setState({ refImage: null, elements: [] })
+    useStore.getState().importLayout(JSON.parse(JSON.stringify(file)))
+    const ri = useStore.getState().refImage!
+    expect(ri).toEqual({
+      dataUrl: 'data:image/jpeg;base64,roundtrip',
+      x: 12, y: 34, width: 256, aspect: 0.6,
+      rotation: 22, opacity: 0.45, visible: true, locked: true,
+    })
+    expect(useStore.getState().elements.length).toBeGreaterThan(0)
+  })
+})
