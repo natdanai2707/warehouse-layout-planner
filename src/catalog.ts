@@ -4,16 +4,32 @@ import type { ElementDef, LayerId } from './types'
 // about a type lives in its entry — adding a new element type is ONE new row.
 export const CATALOG: ElementDef[] = [
   // ---- buildings & structures ----
-  { id: 'warehouse', labelTh: 'โกดัง', labelEn: 'Warehouse', layer: 'buildings', geom: 'rect', color: '#64748b', icon: '🏭', w: 18, d: 30, h: 8, roof: true, showArea: true },
-  { id: 'office', labelTh: 'สำนักงาน', labelEn: 'Office', layer: 'buildings', geom: 'rect', color: '#0ea5e9', icon: '🏢', w: 8, d: 12, h: 7, showArea: true },
+  { id: 'warehouse', labelTh: 'โกดัง', labelEn: 'Warehouse', layer: 'buildings', geom: 'rect', color: '#64748b', icon: '🏭', w: 18, d: 30, h: 8, roof: true, showArea: true, enterable: true },
+  { id: 'factory', labelTh: 'โรงงาน', labelEn: 'Factory', layer: 'buildings', geom: 'rect', color: '#7c8794', icon: '🏗️', w: 24, d: 48, h: 10, roof: true, showArea: true, enterable: true },
+  { id: 'office', labelTh: 'สำนักงาน', labelEn: 'Office', layer: 'buildings', geom: 'rect', color: '#0ea5e9', icon: '🏢', w: 8, d: 12, h: 7, showArea: true, enterable: true },
   { id: 'guardhouse', labelTh: 'ป้อมยาม', labelEn: 'Guard House', layer: 'buildings', geom: 'rect', color: '#f59e0b', icon: '💂', w: 3, d: 3, h: 3, roof: true },
   { id: 'coverway', labelTh: 'หลังคาทางเดิน', labelEn: 'Coverway / Canopy', layer: 'buildings', geom: 'rect', color: '#94a3b8', icon: '⛱️', w: 3, d: 12, h: 3.5, fillOpacity: 0.45 },
   { id: 'pumphouse', labelTh: 'โรงปั๊มน้ำ', labelEn: 'Pump House', layer: 'buildings', geom: 'rect', color: '#8b5cf6', icon: '⚙️', w: 4, d: 4, h: 3, roof: true },
+
+  // A building that already exists on site: massing only, no interior. `h` is
+  // the ridge, `eave` the side wall.
+  { id: 'existing_factory', labelTh: 'โรงงานเดิม (ก้อนมวล)', labelEn: 'Existing Building', layer: 'buildings', geom: 'rect', color: '#e2e5e9', icon: '🏚️', w: 30, d: 18, h: 9, eave: 6, roof: true, showArea: true },
+  { id: 'canopy_link', labelTh: 'หลังคาทางเชื่อมอาคาร', labelEn: 'Link Canopy', layer: 'buildings', geom: 'rect', color: '#9aa3ad', icon: '🌂', w: 12, d: 4, h: 3.5, fillOpacity: 0.45 },
+  { id: 'smoking', labelTh: 'ศาลาสูบบุหรี่', labelEn: 'Smoking Shelter', layer: 'buildings', geom: 'rect', color: '#a8a29e', icon: '🚬', w: 3, d: 3, h: 2.6, roof: true },
+  { id: 'waste_area', labelTh: 'จุดทิ้งขยะ / คัดแยก', labelEn: 'Waste Area', layer: 'buildings', geom: 'rect', color: '#84cc16', icon: '♻️', w: 4, d: 3, h: 2 },
 
   // ---- circulation ----
   { id: 'road', labelTh: 'ทางเดินรถ', labelEn: 'Vehicle Road', layer: 'circulation', geom: 'polyline', color: '#57534e', icon: '🛣️', lineWidth: 6, lineHeight: 0.08, centerline: true },
   { id: 'walkway', labelTh: 'ทางเดินเท้า', labelEn: 'Walkway', layer: 'circulation', geom: 'polyline', color: '#a8a29e', icon: '🚶', lineWidth: 1.5, lineHeight: 0.1 },
   { id: 'gate', labelTh: 'ประตูทางเข้า', labelEn: 'Gate / Entrance', layer: 'circulation', geom: 'rect', color: '#dc2626', icon: '🚧', w: 8, d: 0.5, h: 1.8, fillOpacity: 0.8 },
+  { id: 'carpark', labelTh: 'ลานจอดรถ', labelEn: 'Car Park', layer: 'circulation', geom: 'rect', color: '#78716c', icon: '🅿️', w: 15, d: 10, h: 0.1, showArea: true },
+  { id: 'yard_steel', labelTh: 'ลานกองเหล็ก', labelEn: 'Steel Yard', layer: 'circulation', geom: 'polygon', color: '#8d8378', icon: '🧱', polySize: { x: 20, y: 10 }, showArea: true },
+  { id: 'weighbridge', labelTh: 'เครื่องชั่งรถบรรทุก', labelEn: 'Weighbridge', layer: 'circulation', geom: 'rect', color: '#57534e', icon: '⚖️', w: 18, d: 3, h: 0.3 },
+  { id: 'truck', labelTh: 'รถบรรทุก 6 ล้อ', labelEn: '6-Wheel Truck', layer: 'circulation', geom: 'rect', color: '#1d4ed8', icon: '🚚', w: 7.0, d: 2.4, h: 3.0 },
+  { id: 'trailer', labelTh: 'รถเทรลเลอร์', labelEn: 'Trailer', layer: 'circulation', geom: 'rect', color: '#1e40af', icon: '🚛', w: 16, d: 2.5, h: 4.0 },
+  { id: 'container', labelTh: 'ตู้คอนเทนเนอร์ 20 ฟุต', labelEn: '20 ft Container', layer: 'circulation', geom: 'rect', color: '#b45309', icon: '📦', w: 6.06, d: 2.44, h: 2.59 },
+  { id: 'car', labelTh: 'รถยนต์', labelEn: 'Car', layer: 'circulation', geom: 'rect', color: '#5b7fb4', icon: '🚗', w: 4.6, d: 1.8, h: 1.5 },
+  { id: 'moto', labelTh: 'รถจักรยานยนต์', labelEn: 'Motorcycle', layer: 'circulation', geom: 'rect', color: '#c2452f', icon: '🏍️', w: 2.1, d: 0.8, h: 1.2 },
 
   // ---- utilities & infrastructure ----
   { id: 'pole', labelTh: 'เสาไฟฟ้า', labelEn: 'Electric Pole', layer: 'utilities', geom: 'point', color: '#78716c', icon: '⚡', radius: 0.5, pointStyle: 'pole' },

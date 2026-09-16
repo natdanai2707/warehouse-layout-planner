@@ -1,3 +1,7 @@
+import type { BuildingInterior } from './interior/types'
+
+export type { BuildingInterior } from './interior/types'
+
 // All coordinates and dimensions are real-world METERS.
 // World axes: x → east (right), y → south (down on screen). North is -y at northAngle 0.
 
@@ -33,6 +37,10 @@ export interface ElementDef {
   flowArrows?: boolean // polyline: draw flow-direction arrows (drains)
   dashed?: boolean // polyline: dashed stroke in the 2D plan export (fences)
   centerline?: boolean // polyline: dashed white centerline in the 2D plan export (roads)
+  /** rect: a real building you can go inside and lay out (see BuildingInterior). */
+  enterable?: boolean
+  /** rect: eave height (m) for a massing block whose `h` is the ridge. */
+  eave?: number
 }
 
 interface PlacedBase {
@@ -51,6 +59,12 @@ export interface PlacedRect extends PlacedBase {
   d: number
   h?: number // building height (m); falls back to the catalog default
   rot: number // degrees, clockwise
+  /**
+   * Buildings only: the storeys, shell design and everything placed inside.
+   * Interior coordinates are LOCAL to this rect (origin at its center, +x
+   * along w, +z along d, before `rot`), so each building is independent.
+   */
+  interior?: BuildingInterior
 }
 
 export interface PlacedPolygon extends PlacedBase {
