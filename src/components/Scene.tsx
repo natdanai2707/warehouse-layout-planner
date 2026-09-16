@@ -18,6 +18,7 @@ import {
 } from '../geometry'
 import type { PlacedElement, PlacedRect, Vec2 } from '../types'
 import { computeDrop } from '../interior/placement'
+import { isoFraming } from '../framing'
 import { setViewAxis } from '../viewAxis'
 import { WalkRig } from './WalkRig'
 import { ArrowHandle } from './gizmo'
@@ -46,16 +47,9 @@ function CaptureBinder() {
 // entering and leaving a building bumps, so the view re-frames each time.
 function CameraRig() {
   const size = useThree((s) => s.size)
-  const { center, zoom, dist } = useMemo(() => {
+  const { center, zoom, dist, depth } = useMemo(() => {
     const pts = interiorFrameBox()
-    const bb = bboxOf(pts.length >= 2 ? pts : [{ x: 0, y: 0 }, { x: 100, y: 80 }])
-    const w = Math.max(20, bb.maxX - bb.minX)
-    const d = Math.max(20, bb.maxY - bb.minY)
-    return {
-      center: [(bb.minX + bb.maxX) / 2, 0, (bb.minY + bb.maxY) / 2] as [number, number, number],
-      zoom: Math.max(2, Math.min(size.width, size.height) / (Math.max(w, d) * 1.45)),
-      dist: Math.max(w, d) * 1.2 + 40,
-    }
+    return isoFraming(bboxOf(pts.length >= 2 ? pts : [{ x: 0, y: 0 }, { x: 100, y: 80 }]), size.width, size.height)
     // framed once per mount — remount (viewKey) re-frames
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -65,8 +59,8 @@ function CameraRig() {
         makeDefault
         position={[center[0] + dist, dist, center[2] + dist]}
         zoom={zoom}
-        near={-2000}
-        far={4000}
+        near={-depth}
+        far={depth}
       />
       {/* built-in wheel zoom is off; WheelZoom does cursor-centered zoom in every mode */}
       <OrbitControls makeDefault target={center} maxPolarAngle={Math.PI / 2.05} enableZoom={false} />
@@ -399,13 +393,18 @@ function PlotGround() {
   const gridGeo = useMemo(() => {
     const bb = bboxOf(plot.pts)
     const m = 20
-    const x0 = Math.floor((bb.minX - m) / grid.cell) * grid.cell
+    // A 3 km site at a 1 m grid is 3000 lines an axis and no longer reads as a
+    // grid anyway, so the DRAWN spacing is coarsened in whole multiples. The
+    // snapping cell itself never changes.
+    const span = Math.max(bb.maxX - bb.minX, bb.maxY - bb.minY) + 2 * m
+    const cell = grid.cell * Math.max(1, Math.ceil(span / grid.cell / 400))
+    const x0 = Math.floor((bb.minX - m) / cell) * cell
     const x1 = bb.maxX + m
-    const y0 = Math.floor((bb.minY - m) / grid.cell) * grid.cell
+    const y0 = Math.floor((bb.minY - m) / cell) * cell
     const y1 = bb.maxY + m
     const pts: number[] = []
-    for (let x = x0; x <= x1; x += grid.cell) pts.push(x, 0, y0, x, 0, y1)
-    for (let y = y0; y <= y1; y += grid.cell) pts.push(x0, 0, y, x1, 0, y)
+    for (let x = x0; x <= x1; x += cell) pts.push(x, 0, y0, x, 0, y1)
+    for (let y = y0; y <= y1; y += cell) pts.push(x0, 0, y, x1, 0, y)
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
     return g
@@ -715,6 +714,35 @@ function Guides() {
   )
 }
 
+/**
+ * One oblique sun over the site. Its shadow frustum is sized from the plot:
+ * fixed bounds lost every shadow on a site bigger than a few hundred metres,
+ * and a frustum sized for a 3 km strip would waste the whole shadow map on a
+ * small one.
+ */
+function Sun() {
+  const plotPts = useStore((s) => s.plot.pts)
+  const r = useMemo(() => {
+    const bb = bboxOf(plotPts)
+    return Math.max(120, Math.hypot(bb.maxX - bb.minX, bb.maxY - bb.minY) * 0.62)
+  }, [plotPts])
+  return (
+    <directionalLight
+      position={[r * 0.55, r * 0.9, r * 0.35]}
+      intensity={1.35}
+      castShadow
+      shadow-mapSize={[2048, 2048]}
+      shadow-camera-left={-r}
+      shadow-camera-right={r}
+      shadow-camera-top={r}
+      shadow-camera-bottom={-r}
+      shadow-camera-near={1}
+      shadow-camera-far={r * 4}
+      shadow-bias={-0.0004}
+    />
+  )
+}
+
 function SceneContent() {
   const plot = useStore((s) => s.plot)
   const elements = useStore((s) => s.elements)
@@ -812,19 +840,7 @@ function SceneContent() {
   return (
     <>
       <ambientLight intensity={0.75} />
-      <directionalLight
-        position={[80, 130, 50]}
-        intensity={1.35}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-160}
-        shadow-camera-right={160}
-        shadow-camera-top={160}
-        shadow-camera-bottom={-160}
-        shadow-camera-near={1}
-        shadow-camera-far={500}
-        shadow-bias={-0.0004}
-      />
+      <Sun />
       <hemisphereLight intensity={0.35} groundColor="#c8bfae" />
 
       <PlotGround />
