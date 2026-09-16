@@ -40,6 +40,19 @@ function NumberField({
   )
 }
 
+/** Full screen — a phone's browser chrome eats a third of the viewport. */
+function FullScreenButton() {
+  const toggle = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+    else document.documentElement.requestFullscreen().catch(() => {})
+  }
+  return (
+    <button onClick={toggle} title="เต็มจอ">
+      ⛶ เต็มจอ
+    </button>
+  )
+}
+
 /**
  * Toolbar while inside a building: which storey you are editing, the way back
  * out, and the view switches that still apply. The plot fields make no sense
@@ -52,6 +65,7 @@ function BuildingToolbar() {
   const gridVisible = useStore((s) => s.grid.visible)
   const canUndo = useStore((s) => s.past.length > 0)
   const canRedo = useStore((s) => s.future.length > 0)
+  const walking = useStore((s) => s.viewMode === 'walk')
   const s = useStore.getState
   const floors = b?.interior?.floors ?? []
 
@@ -82,6 +96,9 @@ function BuildingToolbar() {
       </div>
 
       <div className="tb-group">
+        <button className={walking ? 'on' : ''} onClick={() => s().setViewMode(walking ? 'iso' : 'walk')} title="เดินดูภายในอาคารมุมมองบุคคลที่หนึ่ง">
+          🚶 เดินชม
+        </button>
         <button className={gridVisible ? 'on' : ''} onClick={() => s().toggleGridVisible()} title="G">
           ตาราง
         </button>
@@ -91,6 +108,7 @@ function BuildingToolbar() {
         <button onClick={() => s().resetView()} title="F — กลับมุมมองพอดีอาคาร">
           ⛶ พอดีจอ
         </button>
+        <FullScreenButton />
       </div>
 
       <div className="tb-group">
@@ -197,6 +215,7 @@ function SiteToolbar() {
         <button onClick={() => s().resetView()} title="F — กลับมุมมองมาตรฐานเห็นทั้งแปลง">
           ⛶ พอดีจอ
         </button>
+        <FullScreenButton />
       </div>
 
       <div className="tb-group">

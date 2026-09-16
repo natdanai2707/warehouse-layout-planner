@@ -18,6 +18,8 @@ import {
 } from '../geometry'
 import type { PlacedElement, PlacedRect, Vec2 } from '../types'
 import { computeDrop } from '../interior/placement'
+import { setViewAxis } from '../viewAxis'
+import { WalkRig } from './WalkRig'
 import { ArrowHandle } from './gizmo'
 import { beginGesture, gestureRef } from './gestures'
 import { InteriorContent, activeBuildingOf, interiorFrameBox } from './InteriorScene'
@@ -139,6 +141,18 @@ function WheelZoom() {
     return () => el.removeEventListener('wheel', onWheel)
   }, [gl, camera, controlsAny])
 
+  return null
+}
+
+// Publishes the camera's ground facing, quantized to a world axis, so the
+// nudge pad and the arrow keys push things the way the view is turned.
+function ViewAxisTracker() {
+  const camera = useThree((s) => s.camera)
+  useFrame(() => {
+    const d = new THREE.Vector3()
+    camera.getWorldDirection(d)
+    setViewAxis(d.x, d.z)
+  })
   return null
 }
 
@@ -927,11 +941,13 @@ export function Scene() {
   const camZoom = useStore((s) => s.camZoom)
   const tool = useStore((s) => s.tool)
   const mode = useStore((s) => s.mode)
+  const walking = useStore((s) => s.mode === 'building' && s.viewMode === 'walk')
   const plotAreaSqm = useMemo(() => polygonArea(plot.pts), [plot.pts])
   const scaleLen = niceScaleLength(camZoom)
 
-  const hint =
-    tool.type === 'placeInterior'
+  const hint = walking
+    ? 'เดินชม: ลากจอเพื่อหันมอง · WASD / ลูกศร เดิน · Shift วิ่ง · Esc ออก'
+    : tool.type === 'placeInterior'
       ? `คลิกพื้นเพื่อวาง ${tool.def.labelTh} · Esc ยกเลิก`
       : tool.type === 'place'
       ? `คลิกพื้นเพื่อวาง ${tool.def.labelTh} · Esc ยกเลิก`
@@ -954,19 +970,22 @@ export function Scene() {
         style={{ background: '#eceae4' }}
       >
         <CaptureBinder />
-        <group key={`rig-${viewKey}`}>
-          <CameraRig />
+        <group key={`rig-${viewKey}-${walking ? 'walk' : 'orbit'}`}>
+          {walking ? <WalkRig /> : <CameraRig />}
         </group>
-        <WheelZoom />
+        {!walking && <WheelZoom />}
         <ZoomTracker />
-        <DragController />
+        <ViewAxisTracker />
+        {!walking && <DragController />}
         {mode === 'building' ? <InteriorContent /> : <SceneContent />}
       </Canvas>
 
-      <div className="scale-bar">
-        <div className="sb-line" style={{ width: scaleLen * camZoom }} />
-        <span>≈ {scaleLen} ม.</span>
-      </div>
+      {!walking && (
+        <div className="scale-bar">
+          <div className="sb-line" style={{ width: scaleLen * camZoom }} />
+          <span>≈ {scaleLen} ม.</span>
+        </div>
+      )}
       <div className="area-chip">
         {mode === 'building' ? <BuildingChip /> : <>พื้นที่แปลง {fmt(plotAreaSqm)} ตร.ม. · {fmt(plotAreaSqm / 1600, 2)} ไร่ ({formatRai(plotAreaSqm)})</>}
       </div>

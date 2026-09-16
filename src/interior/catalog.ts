@@ -188,3 +188,11 @@ export const FIXED_SIZE_DEFS = new Set<string>([])
 
 /** Categories drawn as a flat floor patch rather than a solid block. */
 export const FLAT_CATEGORIES = new Set<Category>(['zone'])
+
+// handy for debugging / automated UI tests, mirroring window.__siteStore
+declare global {
+  interface Window {
+    __interiorCatalog?: typeof CATALOG
+  }
+}
+if (typeof window !== 'undefined') window.__interiorCatalog = CATALOG

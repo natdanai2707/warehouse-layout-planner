@@ -143,6 +143,15 @@ interface SiteState {
   duplicateInteriorSelected: () => void
   rotateInteriorSelected: () => void
 
+  /** iso = the planning view, walk = first person inside the building */
+  viewMode: 'iso' | 'walk'
+  setViewMode: (v: 'iso' | 'walk') => void
+
+  /** Screen-relative nudge of the selection, in meters. Works in both modes. */
+  nudge: (dx: number, dz: number) => void
+  nudgeStep: number
+  setNudgeStep: (v: number) => void
+
   setFloorLevel: (v: number) => void
   setBuildingBay: (v: number) => void
   setShell: (patch: Partial<ShellConfig>) => void
@@ -615,6 +624,22 @@ export const useStore = create<SiteState>()(
       }),
 
     setActiveFloor: (id) => set({ activeFloorId: id, selectedIds: [] }),
+
+    viewMode: 'iso',
+    setViewMode: (v) => set({ viewMode: v, selectedIds: [], tool: { type: 'select' }, moveArmed: false }),
+
+    nudgeStep: 0.5,
+    setNudgeStep: (v) => set({ nudgeStep: Math.max(0.01, v) }),
+
+    // The keyboard has had arrow nudging all along, but a phone has neither
+    // arrow keys nor a Shift — this is the same thing under a thumb.
+    nudge: (dx, dz) => {
+      const s = get()
+      if (s.selectedIds.length === 0) return
+      s.pushHistory()
+      if (s.mode === 'building') s.moveInteriorSelectedBy(dx, dz)
+      else s.moveSelectedBy(dx, dz)
+    },
 
     startPlacingInterior: (def) => set({ tool: { type: 'placeInterior', def }, ghost: null, selectedIds: [] }),
 

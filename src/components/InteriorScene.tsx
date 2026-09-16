@@ -95,6 +95,7 @@ function FloorSlab({ b, frame }: { b: PlacedRect; frame: Frame }) {
  */
 function Perimeter({ b }: { b: PlacedRect }) {
   const iv = b.interior!
+  const walking = useStore((s) => s.viewMode === 'walk')
   // a designed building's walls follow its zones; the tallest wall on each
   // side sets the height of the enclosure you edit against
   const eave = iv.design
@@ -131,6 +132,9 @@ function Perimeter({ b }: { b: PlacedRect }) {
                   transparent={!solid}
                   opacity={solid ? 1 : 0.25}
                   roughness={0.85}
+                  // from inside, every wall should be there; the inward normals
+                  // only cut away the ones you are looking THROUGH from outside
+                  side={walking ? THREE.DoubleSide : THREE.FrontSide}
                 />
               </mesh>
             ))}
@@ -230,6 +234,7 @@ function InteriorGizmo({ o, base }: { o: Placed; base: number }) {
 
 export function InteriorContent() {
   const b = useStore(activeBuildingOf)
+  const walking = useStore((s) => s.viewMode === 'walk')
   const selectedIds = useStore((s) => s.selectedIds)
   const activeFloorId = useStore((s) => s.activeFloorId)
   const showLabels = useStore((s) => s.showLabels)
@@ -308,13 +313,22 @@ export function InteriorContent() {
 
       <FloorSlab b={b} frame={frame} />
       <Perimeter b={b} />
-      {/* the designed shell as a ghost on top: you see the real roof shape and
-          zone heights without it ever getting between you and the floor */}
-      <BuildingShell design={iv.design} mode={1} width={b.w} length={b.d} objects={iv.objects} />
+      {/* Planning: the designed shell as a ghost, so you read the roof shape
+          and the zone heights while the floor stays completely clear.
+          Walking: the same shell solid, because from in here you should see
+          the cladding and the roof over your head, not through them. */}
+      <BuildingShell
+        design={iv.design}
+        mode={walking ? 2 : 1}
+        width={b.w}
+        length={b.d}
+        objects={iv.objects}
+        force={walking}
+      />
       <BayColumns b={b} />
 
       {/* the other storeys, faded right back so the active one reads clearly */}
-      {floors
+      {!walking && floors
         .filter((f) => f.id !== active.id)
         .map((f) => (
           <group key={f.id}>
@@ -339,41 +353,45 @@ export function InteriorContent() {
           </group>
         ))}
 
-      {/* the storey being edited */}
+      {/* the storey being edited — or, while walking, all of them solid */}
       {iv.objects
-        .filter((o) => floorIdOf(o) === active.id)
+        .filter((o) => walking || floorIdOf(o) === active.id)
         .map((o) => (
           <InteriorMesh
             key={o.id}
             o={o}
-            y={active.base}
-            selected={selectedIds.includes(o.id)}
-            warning={warnings.has(o.id)}
-            showLabels={showLabels}
+            y={walking ? (floors.find((f) => f.id === floorIdOf(o)) ?? floors[0]).base : active.base}
+            selected={!walking && selectedIds.includes(o.id)}
+            warning={!walking && warnings.has(o.id)}
+            showLabels={showLabels && !walking}
             onDown={onObjectDown}
           />
         ))}
 
-      <InteriorGhost frame={frame} />
-      {selected && tool.type === 'select' && <InteriorGizmo o={selected} base={active.base} />}
+      {!walking && <InteriorGhost frame={frame} />}
+      {!walking && selected && tool.type === 'select' && <InteriorGizmo o={selected} base={active.base} />}
 
       {/* name plate at the far corner, so you always know which building this is */}
-      <Html position={[-b.w / 2, iv.shell.eave + 1.2, -b.d / 2]} center style={{ pointerEvents: 'none' }}>
-        <div className="obj-label sel">
-          {b.label} · {b.w}×{b.d} ม. · {active.name}
-        </div>
-      </Html>
+      {!walking && (
+        <Html position={[-b.w / 2, iv.shell.eave + 1.2, -b.d / 2]} center style={{ pointerEvents: 'none' }}>
+          <div className="obj-label sel">
+            {b.label} · {b.w}×{b.d} ม. · {active.name}
+          </div>
+        </Html>
+      )}
 
       {/* invisible catcher on the active storey's plane */}
-      <mesh
-        position={[0, active.base - 0.02, 0]}
-        rotation-x={-Math.PI / 2}
-        onPointerDown={onCatcherDown}
-        onPointerMove={onCatcherMove}
-      >
-        <planeGeometry args={[4000, 4000]} />
-        <meshBasicMaterial visible={false} />
-      </mesh>
+      {!walking && (
+        <mesh
+          position={[0, active.base - 0.02, 0]}
+          rotation-x={-Math.PI / 2}
+          onPointerDown={onCatcherDown}
+          onPointerMove={onCatcherMove}
+        >
+          <planeGeometry args={[4000, 4000]} />
+          <meshBasicMaterial visible={false} />
+        </mesh>
+      )}
     </>
   )
 }
