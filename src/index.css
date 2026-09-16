@@ -488,3 +488,44 @@ button:disabled {
     transform: translateX(0);
   }
 }
+
+/* ---- inside a building: storey rows in the inspector ---- */
+
+.insp-sub {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #6b6357;
+  text-transform: uppercase;
+}
+
+.floor-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 6px;
+  align-items: end;
+  padding: 6px;
+  border: 1px solid #ddd8cd;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: #fbfaf7;
+}
+
+.floor-row.on {
+  border-color: #2563eb;
+  background: #eef4ff;
+}
+
+.floor-row .floor-pick {
+  grid-column: 1 / -1;
+  text-align: left;
+  font-weight: 600;
+}
+
+.tb-label {
+  align-self: center;
+  font-size: 12px;
+  color: #6b6357;
+  padding: 0 2px;
+}

@@ -3,6 +3,10 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type { ElementDef, GridConfig, LayerId, LayoutFile, PlacedElement, Plot, RefImage, Vec2 } from './types'
 import { dist, makeSeedPolygon, polygonCentroid, rotateDeg, snap } from './geometry'
 import { SAMPLE_LAYOUT } from './sample'
+import type { BuildingInterior, FloorDef, ObjectDef as IObjectDef, Placed, ShellConfig, ShellDesign } from './interior/types'
+import { GROUND_FLOOR_ID, defaultInterior } from './interior/types'
+import { computeDrop, resolveAfterResize } from './interior/placement'
+import type { Frame } from './interior/placement'
 
 const STORAGE_KEY = 'warehouse-site-planner-v1'
 export const FILE_VERSION = 1
@@ -10,6 +14,7 @@ const HISTORY_LIMIT = 100
 
 let seq = 1
 const uid = () => `el-${Date.now().toString(36)}-${seq++}`
+const oid = () => `io-${Date.now().toString(36)}-${seq++}`
 
 export const DEFAULT_PLOT: Plot = {
   pts: [
@@ -36,6 +41,10 @@ export type Tool =
   | { type: 'draw'; def: ElementDef; pts: Vec2[] } // polygon & polyline: click to add vertices
   | { type: 'editPlot' } // drag plot boundary vertices
   | { type: 'calibrate'; pts: Vec2[] } // ref image: click two points, enter real distance
+  | { type: 'placeInterior'; def: IObjectDef } // inside a building: drop an item on the floor
+
+/** Site view = the whole parcel. Building view = inside one building. */
+export type Mode = 'site' | 'building'
 
 interface SiteState {
   plot: Plot
@@ -115,6 +124,33 @@ interface SiteState {
   insertPlotVertex: (i: number, p: Vec2) => void
   deletePlotVertex: (i: number) => void
 
+  /* ---- inside a building ---- */
+  mode: Mode
+  activeBuildingId: string | null
+  activeFloorId: string
+  interiorCell: number // snapping grid inside a building (m) — finer than the site grid
+  setInteriorCell: (v: number) => void
+  enterBuilding: (id: string) => void
+  exitBuilding: () => void
+  setActiveFloor: (id: string) => void
+
+  startPlacingInterior: (def: IObjectDef) => void
+  commitPlaceInterior: (local: { x: number; z: number }) => void
+  updateInteriorObject: (id: string, patch: Partial<Placed>) => void // gesture updates: no history
+  editInteriorObject: (id: string, patch: Partial<Placed>) => void // one-off edits: pushes history
+  moveInteriorSelectedBy: (dx: number, dz: number) => void
+  removeInteriorSelected: () => void
+  duplicateInteriorSelected: () => void
+  rotateInteriorSelected: () => void
+
+  setFloorLevel: (v: number) => void
+  setBuildingBay: (v: number) => void
+  setShell: (patch: Partial<ShellConfig>) => void
+  setShellDesign: (design: ShellDesign | null) => void
+  addFloor: () => void
+  editFloor: (id: string, patch: Partial<FloorDef>) => void
+  removeFloor: (id: string) => void
+
   // view: bumping viewKey remounts the camera rig, which re-frames the plot
   viewKey: number
   resetView: () => void
@@ -149,6 +185,56 @@ function loadSaved() {
 }
 
 const cloneSnap = (s: Snapshot): Snapshot => JSON.parse(JSON.stringify(s))
+
+/* ---------------------------------------------------- interior helpers ---- */
+
+type Get = () => SiteState
+
+/** The building currently being worked on, guaranteed to carry an interior. */
+function activeBuilding(s: SiteState): (PlacedElement & { kind: 'rect'; interior: BuildingInterior }) | null {
+  const el = s.elements.find((e) => e.id === s.activeBuildingId)
+  if (!el || el.kind !== 'rect' || !el.interior) return null
+  return el as PlacedElement & { kind: 'rect'; interior: BuildingInterior }
+}
+
+/** The placement frame of a building: its own footprint plus the interior grid. */
+function frameOf(s: SiteState, b: { w: number; d: number }): Frame {
+  return { width: b.w, length: b.d, cell: s.interiorCell }
+}
+
+/** Rewrite one building's interior in place, optionally pushing history first. */
+function writeInterior(
+  get: Get,
+  id: string,
+  fn: (iv: BuildingInterior) => BuildingInterior,
+  history: boolean,
+) {
+  const s = get()
+  if (history) s.pushHistory()
+  s.updateElement(id, {
+    interior: fn(
+      (s.elements.find((e) => e.id === id) as { interior?: BuildingInterior } | undefined)?.interior ??
+        defaultInterior(),
+    ),
+  } as Partial<PlacedElement>)
+}
+
+/**
+ * A building's footprint changed on the site. Doors, windows and anything else
+ * fitted to a perimeter wall travel with that wall; everything else keeps its
+ * coordinates and is flagged instead of being shoved around.
+ */
+function reseatInterior(el: PlacedElement, cell: number): PlacedElement {
+  if (el.kind !== 'rect' || !el.interior) return el
+  const f: Frame = { width: el.w, length: el.d, cell }
+  return {
+    ...el,
+    interior: {
+      ...el.interior,
+      objects: el.interior.objects.map((o) => (o.rule === 'edge' ? { ...o, ...resolveAfterResize(o, f) } : o)),
+    },
+  }
+}
 
 export const useStore = create<SiteState>()(
   subscribeWithSelector((set, get) => ({
@@ -308,10 +394,17 @@ export const useStore = create<SiteState>()(
 
     setSelection: (ids) => set({ selectedIds: ids }),
 
-    updateElement: (id, patch) =>
+    updateElement: (id, patch) => {
+      const cell = get().interiorCell
+      const resizes = 'w' in patch || 'd' in patch
       set({
-        elements: get().elements.map((el) => (el.id === id ? ({ ...el, ...patch } as PlacedElement) : el)),
-      }),
+        elements: get().elements.map((el) => {
+          if (el.id !== id) return el
+          const next = { ...el, ...patch } as PlacedElement
+          return resizes ? reseatInterior(next, cell) : next
+        }),
+      })
+    },
 
     editElement: (id, patch) => {
       get().pushHistory()
@@ -474,6 +567,240 @@ export const useStore = create<SiteState>()(
       if (plot.pts.length <= 3) return
       get().pushHistory()
       set({ plot: { ...plot, pts: plot.pts.filter((_, idx) => idx !== i) } })
+    },
+
+    /* -------------------------------------------------- inside a building */
+
+    mode: 'site',
+    activeBuildingId: null,
+    activeFloorId: GROUND_FLOOR_ID,
+    interiorCell: 0.5,
+    setInteriorCell: (v) => set({ interiorCell: Math.max(0.1, v) }),
+
+    enterBuilding: (id) => {
+      const b = get().elements.find((el) => el.id === id)
+      if (!b || b.kind !== 'rect') return
+      if (!b.interior) {
+        // seed from the massing already drawn on the site: eave and clear
+        // height follow the block's height so the shell starts life right
+        const seed = defaultInterior()
+        const h = b.h ?? 8
+        seed.shell.eave = Math.max(2.5, h - 1.5)
+        seed.floors = [{ id: GROUND_FLOOR_ID, name: 'พื้นชั้น 1', base: 0, clear: Math.max(2.4, h - 1.5) }]
+        seed.floorLevel = b.defId === 'office' ? 0.15 : 1.2
+        get().pushHistory()
+        get().updateElement(id, { interior: seed } as Partial<PlacedElement>)
+      }
+      set({
+        mode: 'building',
+        activeBuildingId: id,
+        activeFloorId: GROUND_FLOOR_ID,
+        selectedIds: [],
+        tool: { type: 'select' },
+        ghost: null,
+        moveArmed: false,
+        viewKey: get().viewKey + 1,
+      })
+    },
+
+    exitBuilding: () =>
+      set({
+        mode: 'site',
+        activeBuildingId: null,
+        selectedIds: [],
+        tool: { type: 'select' },
+        ghost: null,
+        moveArmed: false,
+        viewKey: get().viewKey + 1,
+      }),
+
+    setActiveFloor: (id) => set({ activeFloorId: id, selectedIds: [] }),
+
+    startPlacingInterior: (def) => set({ tool: { type: 'placeInterior', def }, ghost: null, selectedIds: [] }),
+
+    commitPlaceInterior: (local) => {
+      const { tool } = get()
+      if (tool.type !== 'placeInterior') return
+      const b = activeBuilding(get())
+      if (!b) return
+      const def = tool.def
+      const drop = computeDrop({ w: def.w, d: def.d, rot: 0, rule: def.rule }, local.x, local.z, frameOf(get(), b))
+      const o: Placed = {
+        id: oid(),
+        defId: def.id,
+        label: def.labelTh,
+        category: def.category,
+        w: def.w,
+        d: def.d,
+        h: def.h,
+        x: drop.x,
+        z: drop.z,
+        rot: drop.rot,
+        color: def.color,
+        rule: def.rule,
+        floorId: get().activeFloorId,
+      }
+      if (def.category === 'window') o.sill = 0.9
+      writeInterior(get, b.id, (iv) => ({ ...iv, objects: [...iv.objects, o] }), true)
+      set({ selectedIds: [o.id], tool: { type: 'select' }, ghost: null })
+    },
+
+    updateInteriorObject: (id, patch) => {
+      const b = activeBuilding(get())
+      if (!b) return
+      writeInterior(
+        get,
+        b.id,
+        (iv) => ({ ...iv, objects: iv.objects.map((o) => (o.id === id ? { ...o, ...patch } : o)) }),
+        false,
+      )
+    },
+
+    editInteriorObject: (id, patch) => {
+      get().pushHistory()
+      get().updateInteriorObject(id, patch)
+    },
+
+    moveInteriorSelectedBy: (dx, dz) => {
+      const b = activeBuilding(get())
+      if (!b) return
+      const sel = get().selectedIds
+      const f = frameOf(get(), b)
+      writeInterior(
+        get,
+        b.id,
+        (iv) => ({
+          ...iv,
+          objects: iv.objects.map((o) => {
+            if (!sel.includes(o.id)) return o
+            const drop = computeDrop(o, o.x + dx, o.z + dz, f, false)
+            return { ...o, x: drop.x, z: drop.z, rot: drop.rot }
+          }),
+        }),
+        false,
+      )
+    },
+
+    removeInteriorSelected: () => {
+      const b = activeBuilding(get())
+      const sel = get().selectedIds
+      if (!b || sel.length === 0) return
+      writeInterior(get, b.id, (iv) => ({ ...iv, objects: iv.objects.filter((o) => !sel.includes(o.id)) }), true)
+      set({ selectedIds: [] })
+    },
+
+    duplicateInteriorSelected: () => {
+      const b = activeBuilding(get())
+      const sel = get().selectedIds
+      if (!b || sel.length === 0) return
+      const f = frameOf(get(), b)
+      const off = Math.max(f.cell, 1)
+      const copies = b.interior!.objects
+        .filter((o) => sel.includes(o.id))
+        .map((o) => {
+          const c: Placed = { ...JSON.parse(JSON.stringify(o)), id: oid() }
+          const drop = computeDrop(c, c.x + off, c.z + off, f, false)
+          c.x = drop.x
+          c.z = drop.z
+          return c
+        })
+      writeInterior(get, b.id, (iv) => ({ ...iv, objects: [...iv.objects, ...copies] }), true)
+      set({ selectedIds: copies.map((c) => c.id) })
+    },
+
+    rotateInteriorSelected: () => {
+      const b = activeBuilding(get())
+      const sel = get().selectedIds
+      if (!b || sel.length === 0) return
+      const f = frameOf(get(), b)
+      writeInterior(
+        get,
+        b.id,
+        (iv) => ({
+          ...iv,
+          objects: iv.objects.map((o) => {
+            if (!sel.includes(o.id)) return o
+            // an edge item turns by staying on its wall: step it to the next one
+            const rot = ((o.rot + (o.rule === 'edge' ? 2 : 1)) % 8) as number
+            const turned = { ...o, rot }
+            if (o.rule !== 'edge') {
+              const drop = computeDrop(turned, o.x, o.z, f, false)
+              return { ...turned, x: drop.x, z: drop.z }
+            }
+            const r = resolveAfterResize(turned, f)
+            return { ...turned, ...r }
+          }),
+        }),
+        true,
+      )
+    },
+
+    setFloorLevel: (v) => {
+      const b = activeBuilding(get())
+      if (!b) return
+      writeInterior(get, b.id, (iv) => ({ ...iv, floorLevel: Math.max(0, v) }), true)
+    },
+
+    setBuildingBay: (v) => {
+      const b = activeBuilding(get())
+      if (!b) return
+      writeInterior(get, b.id, (iv) => ({ ...iv, bay: Math.max(0, v) }), true)
+    },
+
+    setShell: (patch) => {
+      const b = activeBuilding(get())
+      if (!b) return
+      writeInterior(get, b.id, (iv) => ({ ...iv, shell: { ...iv.shell, ...patch } }), true)
+    },
+
+    setShellDesign: (design) => {
+      const b = activeBuilding(get())
+      if (!b) return
+      writeInterior(get, b.id, (iv) => ({ ...iv, design }), true)
+    },
+
+    addFloor: () => {
+      const b = activeBuilding(get())
+      if (!b) return
+      const floors = b.interior!.floors
+      const top = floors[floors.length - 1]
+      const fl: FloorDef = {
+        id: `fl-${Date.now().toString(36)}-${seq++}`,
+        name: `พื้นชั้น ${floors.length + 1}`,
+        base: top.base + top.clear + 0.2,
+        clear: Math.max(2.4, top.clear),
+      }
+      writeInterior(get, b.id, (iv) => ({ ...iv, floors: [...iv.floors, fl] }), true)
+      set({ activeFloorId: fl.id, selectedIds: [] })
+    },
+
+    editFloor: (id, patch) => {
+      const b = activeBuilding(get())
+      if (!b) return
+      writeInterior(
+        get,
+        b.id,
+        (iv) => ({ ...iv, floors: iv.floors.map((fl) => (fl.id === id ? { ...fl, ...patch } : fl)) }),
+        true,
+      )
+    },
+
+    removeFloor: (id) => {
+      const b = activeBuilding(get())
+      if (!b || id === GROUND_FLOOR_ID || b.interior!.floors.length <= 1) return
+      writeInterior(
+        get,
+        b.id,
+        (iv) => ({
+          ...iv,
+          floors: iv.floors.filter((fl) => fl.id !== id),
+          // things on the deleted storey come down to the ground floor rather
+          // than vanishing with it
+          objects: iv.objects.map((o) => (o.floorId === id ? { ...o, floorId: GROUND_FLOOR_ID } : o)),
+        }),
+        true,
+      )
+      if (get().activeFloorId === id) set({ activeFloorId: GROUND_FLOOR_ID, selectedIds: [] })
     },
 
     // ---- view ----

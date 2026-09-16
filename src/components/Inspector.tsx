@@ -47,6 +47,13 @@ function SingleInspector({ el }: { el: PlacedElement }) {
         <span>ชื่อ / Label</span>
         <input type="text" value={el.label} onChange={(e) => edit({ label: e.target.value })} />
       </label>
+      {el.kind === 'rect' && def?.enterable && (
+        <div className="insp-actions">
+          <button className="save" onClick={() => useStore.getState().enterBuilding(el.id)}>
+            ⤓ เข้าไปออกแบบภายในอาคาร
+          </button>
+        </div>
+      )}
       {el.kind === 'rect' && (
         <>
           <div className="insp-grid">

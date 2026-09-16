@@ -3,6 +3,7 @@ import { exportLayout, useStore } from '../store'
 import type { LayoutFile } from '../types'
 import { bboxOf, polygonArea, SQM_PER_RAI } from '../geometry'
 import { downloadBlob, exportCsvFile, exportPngFile, exportSvgFile } from '../exporters'
+import { activeBuildingOf } from './InteriorScene'
 
 function NumberField({
   label,
@@ -39,7 +40,78 @@ function NumberField({
   )
 }
 
+/**
+ * Toolbar while inside a building: which storey you are editing, the way back
+ * out, and the view switches that still apply. The plot fields make no sense
+ * in here, so they are replaced rather than disabled.
+ */
+function BuildingToolbar() {
+  const b = useStore(activeBuildingOf)
+  const activeFloorId = useStore((s) => s.activeFloorId)
+  const showLabels = useStore((s) => s.showLabels)
+  const gridVisible = useStore((s) => s.grid.visible)
+  const canUndo = useStore((s) => s.past.length > 0)
+  const canRedo = useStore((s) => s.future.length > 0)
+  const s = useStore.getState
+  const floors = b?.interior?.floors ?? []
+
+  return (
+    <header className="toolbar">
+      <div className="tb-title">🏭 ในอาคาร · {b?.label ?? ''}</div>
+
+      <div className="tb-group">
+        <button className="save" onClick={() => s().exitBuilding()} title="กลับไปดูผังที่ดินทั้งหมด">
+          ↩ ออกไปผังที่ดิน
+        </button>
+      </div>
+
+      <div className="tb-group" title="ชั้นที่กำลังแก้ — ชั้นอื่นจะจางลง">
+        <span className="tb-label">ชั้น</span>
+        {floors.map((f) => (
+          <button
+            key={f.id}
+            className={f.id === activeFloorId ? 'on' : ''}
+            onClick={() => s().setActiveFloor(f.id)}
+          >
+            {f.name}
+          </button>
+        ))}
+        <button onClick={() => s().addFloor()} title="เพิ่มชั้นบนสุด">
+          + ชั้น
+        </button>
+      </div>
+
+      <div className="tb-group">
+        <button className={gridVisible ? 'on' : ''} onClick={() => s().toggleGridVisible()} title="G">
+          ตาราง
+        </button>
+        <button className={showLabels ? 'on' : ''} onClick={() => s().toggleLabels()} title="L">
+          ป้าย
+        </button>
+        <button onClick={() => s().resetView()} title="F — กลับมุมมองพอดีอาคาร">
+          ⛶ พอดีจอ
+        </button>
+      </div>
+
+      <div className="tb-group">
+        <button onClick={() => s().undo()} disabled={!canUndo} title="Ctrl+Z">
+          ↶ เลิกทำ
+        </button>
+        <button onClick={() => s().redo()} disabled={!canRedo} title="Ctrl+Y">
+          ↷ ทำซ้ำ
+        </button>
+      </div>
+    </header>
+  )
+}
+
 export function Toolbar() {
+  const mode = useStore((s) => s.mode)
+  if (mode === 'building') return <BuildingToolbar />
+  return <SiteToolbar />
+}
+
+function SiteToolbar() {
   const plot = useStore((s) => s.plot)
   const grid = useStore((s) => s.grid)
   const tool = useStore((s) => s.tool)

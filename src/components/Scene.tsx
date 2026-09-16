@@ -5,7 +5,6 @@ import type { ThreeEvent } from '@react-three/fiber'
 import { Html, Line, OrbitControls, OrthographicCamera } from '@react-three/drei'
 import { useStore } from '../store'
 import { defById, LAYERS } from '../catalog'
-import type { BBox } from '../geometry'
 import {
   axisAlign,
   bboxOf,
@@ -18,7 +17,10 @@ import {
   snap,
 } from '../geometry'
 import type { PlacedElement, PlacedRect, Vec2 } from '../types'
+import { computeDrop } from '../interior/placement'
 import { ArrowHandle } from './gizmo'
+import { beginGesture, gestureRef } from './gestures'
+import { InteriorContent, activeBuildingOf, interiorFrameBox } from './InteriorScene'
 import { ElementMesh, rectEffH, toShape } from './elements3d'
 
 // Exposed so the toolbar can grab a PNG of the WebGL canvas (gym pattern)
@@ -35,22 +37,16 @@ function CaptureBinder() {
   return null
 }
 
-type Gesture =
-  | { mode: 'move'; start: Vec2; applied: Vec2; bbox0: BBox; others: BBox[]; pushed: boolean }
-  | { mode: 'resize'; id: string; axis: 'x' | 'y'; sign: 1 | -1; start: PlacedRect; pushed: boolean }
-  | { mode: 'height'; id: string; pushed: boolean }
-  | { mode: 'plotVertex'; i: number; pushed: boolean }
-  | { mode: 'vertex'; id: string; i: number; pushed: boolean }
-  | { mode: 'imageMove'; start: Vec2; imgStart: Vec2; pushed: boolean }
 
-const gestureRef: { current: Gesture | null } = { current: null }
 
-// Isometric camera framed on the plot; remounted via viewKey to reset the view
+// Isometric camera framed on whatever the current mode shows — the plot on the
+// site, the building's own footprint inside one. Remounted via viewKey, which
+// entering and leaving a building bumps, so the view re-frames each time.
 function CameraRig() {
   const size = useThree((s) => s.size)
-  const plotPts = useStore((s) => s.plot.pts)
   const { center, zoom, dist } = useMemo(() => {
-    const bb = bboxOf(plotPts.length >= 3 ? plotPts : [{ x: 0, y: 0 }, { x: 100, y: 80 }])
+    const pts = interiorFrameBox()
+    const bb = bboxOf(pts.length >= 2 ? pts : [{ x: 0, y: 0 }, { x: 100, y: 80 }])
     const w = Math.max(20, bb.maxX - bb.minX)
     const d = Math.max(20, bb.maxY - bb.minY)
     return {
@@ -107,8 +103,8 @@ function WheelZoom() {
     // to an invisible speck on the terrain (which reads as a blank screen) nor
     // zoom in past all detail. Recomputed each scroll — plot size can change.
     const zoomBounds = () => {
-      const bb = bboxOf(useStore.getState().plot.pts)
-      const dim = Math.max(20, bb.maxX - bb.minX, bb.maxY - bb.minY)
+      const bb = bboxOf(interiorFrameBox())
+      const dim = Math.max(6, bb.maxX - bb.minX, bb.maxY - bb.minY)
       const r = el.getBoundingClientRect()
       const vpMin = Math.max(200, Math.min(r.width, r.height))
       // min: the plot's largest side always covers >= ~34% of the viewport
@@ -174,7 +170,7 @@ function DragController() {
 
   useEffect(() => {
     const el = gl.domElement
-    const placing = toolType === 'place' || toolType === 'draw'
+    const placing = toolType === 'place' || toolType === 'draw' || toolType === 'placeInterior'
     if (placing && controls) controls.enabled = false
     else if (controls && !gestureRef.current) controls.enabled = true
 
@@ -209,6 +205,25 @@ function DragController() {
       if (!g) return
       if (controls) controls.enabled = false
 
+      if (g.mode === 'iheight') {
+        const b = s.elements.find((v) => v.id === s.activeBuildingId)
+        if (!b || b.kind !== 'rect' || !b.interior) return
+        const o = b.interior.objects.find((v) => v.id === g.id)
+        if (!o) return
+        const base = (b.interior.floors.find((f) => f.id === s.activeFloorId) ?? b.interior.floors[0]).base
+        setRay(e)
+        const dir = new THREE.Vector3()
+        camera.getWorldDirection(dir)
+        dir.y = 0
+        if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1)
+        dir.normalize()
+        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(dir, new THREE.Vector3(o.x, 0, o.z))
+        if (!raycaster.ray.intersectPlane(plane, pt)) return
+        pushOnce(g)
+        s.updateInteriorObject(o.id, { h: Math.max(0.1, Math.round((pt.y - base) / 0.1) * 0.1) })
+        return
+      }
+
       if (g.mode === 'height') {
         // camera-facing vertical plane through the object's center (gym pattern)
         const o = s.elements.find((v) => v.id === g.id)
@@ -228,6 +243,42 @@ function DragController() {
 
       const p = ground(e)
       if (!p) return
+
+      if (g.mode === 'imove' || g.mode === 'iresize') {
+        const b = s.elements.find((v) => v.id === s.activeBuildingId)
+        if (!b || b.kind !== 'rect' || !b.interior) return
+        const f = { width: b.w, length: b.d, cell: s.interiorCell }
+        pushOnce(g)
+        if (g.mode === 'imove') {
+          const tot = { x: p.x - g.start.x, z: p.y - g.start.z }
+          const tdx = snap(tot.x, f.cell)
+          const tdz = snap(tot.z, f.cell)
+          s.moveInteriorSelectedBy(tdx - g.applied.x, tdz - g.applied.z)
+          g.applied = { x: tdx, z: tdz }
+          return
+        }
+        // resize: drag one face out along the item's own local axis
+        const r = g.start
+        const th = (r.rot * Math.PI) / 4
+        const dir = g.axis === 'x' ? { x: Math.cos(th), z: -Math.sin(th) } : { x: Math.sin(th), z: Math.cos(th) }
+        const u = (p.x - r.x) * dir.x + (p.y - r.z) * dir.z
+        const startDim = g.axis === 'x' ? r.w : r.d
+        const newDim = Math.max(0.2, snap(g.sign * u + startDim / 2, 0.1))
+        const shift = (g.sign * (newDim - startDim)) / 2
+        const moved = {
+          ...r,
+          ...(g.axis === 'x' ? { w: newDim } : { d: newDim }),
+          x: r.x + dir.x * shift,
+          z: r.z + dir.z * shift,
+        }
+        const drop = computeDrop(moved, moved.x, moved.z, f, false)
+        s.updateInteriorObject(g.id, {
+          ...(g.axis === 'x' ? { w: newDim } : { d: newDim }),
+          x: drop.x,
+          z: drop.z,
+        })
+        return
+      }
 
       if (g.mode === 'move') {
         pushOnce(g)
@@ -293,7 +344,8 @@ function DragController() {
       if (gestureRef.current) {
         gestureRef.current = null
         useStore.getState().setGuides(null, null)
-        if (controls && !(toolType === 'place' || toolType === 'draw')) controls.enabled = true
+        if (controls && !(toolType === 'place' || toolType === 'draw' || toolType === 'placeInterior'))
+          controls.enabled = true
       }
     }
 
@@ -314,11 +366,6 @@ function DragController() {
   }, [gl, camera, controls, toolType, gestureTick])
 
   return null
-}
-
-const beginGesture = (g: Gesture, controls: { enabled?: boolean } | null) => {
-  gestureRef.current = g
-  if (controls) controls.enabled = false
 }
 
 // Ground: outside terrain, plot fill, boundary outline, snapping grid
@@ -863,16 +910,30 @@ function SceneContent() {
   )
 }
 
+// Inside a building the area chip reports that building instead of the parcel
+function BuildingChip() {
+  const b = useStore(activeBuildingOf)
+  if (!b) return null
+  return (
+    <>
+      {b.label} · {fmt(b.w)}×{fmt(b.d)} ม. · {fmt(b.w * b.d)} ตร.ม. · พื้น +{fmt(b.interior?.floorLevel ?? 0, 2)} ม.
+    </>
+  )
+}
+
 export function Scene() {
   const viewKey = useStore((s) => s.viewKey)
   const plot = useStore((s) => s.plot)
   const camZoom = useStore((s) => s.camZoom)
   const tool = useStore((s) => s.tool)
+  const mode = useStore((s) => s.mode)
   const plotAreaSqm = useMemo(() => polygonArea(plot.pts), [plot.pts])
   const scaleLen = niceScaleLength(camZoom)
 
   const hint =
-    tool.type === 'place'
+    tool.type === 'placeInterior'
+      ? `คลิกพื้นเพื่อวาง ${tool.def.labelTh} · Esc ยกเลิก`
+      : tool.type === 'place'
       ? `คลิกพื้นเพื่อวาง ${tool.def.labelTh} · Esc ยกเลิก`
       : tool.type === 'draw'
         ? `คลิกเพิ่มจุด ${tool.def.labelTh} (${tool.pts.length} จุด) · ดับเบิลคลิก/Enter จบ · Esc ยกเลิก`
@@ -899,7 +960,7 @@ export function Scene() {
         <WheelZoom />
         <ZoomTracker />
         <DragController />
-        <SceneContent />
+        {mode === 'building' ? <InteriorContent /> : <SceneContent />}
       </Canvas>
 
       <div className="scale-bar">
@@ -907,7 +968,7 @@ export function Scene() {
         <span>≈ {scaleLen} ม.</span>
       </div>
       <div className="area-chip">
-        พื้นที่แปลง {fmt(plotAreaSqm)} ตร.ม. · {fmt(plotAreaSqm / 1600, 2)} ไร่ ({formatRai(plotAreaSqm)})
+        {mode === 'building' ? <BuildingChip /> : <>พื้นที่แปลง {fmt(plotAreaSqm)} ตร.ม. · {fmt(plotAreaSqm / 1600, 2)} ไร่ ({formatRai(plotAreaSqm)})</>}
       </div>
       {hint && <div className="tool-hint">{hint}</div>}
     </div>

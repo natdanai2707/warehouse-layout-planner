@@ -2,7 +2,10 @@ import { useEffect } from 'react'
 import { Scene } from './components/Scene'
 import { Toolbar } from './components/Toolbar'
 import { Palette } from './components/Palette'
+import { InteriorPalette } from './components/InteriorPalette'
 import { Inspector } from './components/Inspector'
+import { InteriorInspector } from './components/InteriorInspector'
+import { defById } from './catalog'
 import { RefImagePanel } from './components/RefImagePanel'
 import { LayersPanel } from './components/LayersPanel'
 import { StatsPanel } from './components/StatsPanel'
@@ -17,8 +20,19 @@ export default function App() {
   const toolType = useStore((s) => s.tool.type)
   const moveArmed = useStore((s) => s.moveArmed)
   const setMoveArmed = useStore((s) => s.setMoveArmed)
-  const rotateSelected = useStore((s) => s.rotateSelected)
-  const removeSelected = useStore((s) => s.removeSelected)
+  const mode = useStore((s) => s.mode)
+  const elements = useStore((s) => s.elements)
+  const enterBuilding = useStore((s) => s.enterBuilding)
+  const inside = mode === 'building'
+
+  // the selected element, when it is a building you can go inside
+  const enterable =
+    !inside && selectedIds.length === 1
+      ? elements.find((el) => el.id === selectedIds[0] && el.kind === 'rect' && defById(el.defId)?.enterable)
+      : undefined
+
+  const rotate = () => (inside ? useStore.getState().rotateInteriorSelected() : useStore.getState().rotateSelected())
+  const remove = () => (inside ? useStore.getState().removeInteriorSelected() : useStore.getState().removeSelected())
 
   // Global shortcuts: R rotate 45°, D duplicate, Delete remove, Esc cancel,
   // Enter finish polyline/polygon, G grid, L labels, F zoom-fit, Ctrl+Z/Y undo/redo
@@ -38,25 +52,30 @@ export default function App() {
         s.redo()
         return
       }
+      const inBuilding = s.mode === 'building'
       switch (e.key) {
         case 'r':
         case 'R':
-          s.rotateSelected()
+          if (inBuilding) s.rotateInteriorSelected()
+          else s.rotateSelected()
           break
         case 'd':
         case 'D':
-          s.duplicateSelected()
+          if (inBuilding) s.duplicateInteriorSelected()
+          else s.duplicateSelected()
           break
         case 'Delete':
         case 'Backspace':
-          s.removeSelected()
+          if (inBuilding) s.removeInteriorSelected()
+          else s.removeSelected()
           break
         case 'Enter':
           if (s.tool.type === 'draw') s.finishDraw()
           break
         case 'Escape':
           if (s.tool.type !== 'select') s.cancelTool()
-          else s.select(null)
+          else if (s.selectedIds.length > 0) s.select(null)
+          else if (inBuilding) s.exitBuilding()
           break
         case 'g':
         case 'G':
@@ -80,7 +99,7 @@ export default function App() {
     <div className="app">
       <Toolbar />
       <div className="main">
-        <Palette />
+        {inside ? <InteriorPalette /> : <Palette />}
         <div className="canvas-col">
           <Scene />
           {/* mobile-only drawer toggles */}
@@ -95,9 +114,14 @@ export default function App() {
               <button className={moveArmed ? 'on' : ''} onClick={() => setMoveArmed(!moveArmed)}>
                 ✥ ย้าย{moveArmed ? ': เปิด' : ''}
               </button>
-              <button onClick={rotateSelected}>↻ 45°</button>
+              <button onClick={rotate}>↻ {inside ? 'หมุน' : '45°'}</button>
+              {enterable && (
+                <button className="save" onClick={() => enterBuilding(enterable.id)}>
+                  ⤓ เข้าไปในอาคาร
+                </button>
+              )}
               <button onClick={() => setPanelRight(true)}>✎ แก้ไข</button>
-              <button className="danger" onClick={removeSelected}>
+              <button className="danger" onClick={remove}>
                 🗑 ลบ
               </button>
             </div>
@@ -110,10 +134,16 @@ export default function App() {
           <button className="drawer-close" onClick={() => setPanelRight(false)}>
             ✕ ปิด
           </button>
-          <Inspector />
-          <RefImagePanel />
-          <LayersPanel />
-          <StatsPanel />
+          {inside ? (
+            <InteriorInspector />
+          ) : (
+            <>
+              <Inspector />
+              <RefImagePanel />
+              <LayersPanel />
+              <StatsPanel />
+            </>
+          )}
         </div>
       </div>
     </div>
