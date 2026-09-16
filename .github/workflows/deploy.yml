@@ -2,9 +2,12 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    # claude/warehouse-layout-planner-3dz5q5 is the repo's current default
-    # branch; keep main listed for when the work is merged/renamed later
-    branches: [main, claude/warehouse-layout-planner-3dz5q5]
+    # Every branch the work actually lives on deploys to Pages, so a push is
+    # always visible on the web. main is kept for when the work is merged.
+    branches:
+      - main
+      - claude/warehouse-layout-planner-3dz5q5
+      - claude/layout-planner-p4yeyf
   workflow_dispatch:
 
 permissions:
