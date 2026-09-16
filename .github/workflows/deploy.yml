@@ -10,8 +10,12 @@ on:
       - claude/layout-planner-p4yeyf
   workflow_dispatch:
 
+# actions: read is what lets deploy-pages list the artifact the build job
+# uploaded. Without it the deploy step fails with a bare 403 from
+# ListArtifacts, which reads like an outage but is a permissions gap.
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
