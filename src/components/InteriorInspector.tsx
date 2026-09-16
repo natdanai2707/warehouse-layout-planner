@@ -4,6 +4,7 @@ import { GROUND_FLOOR_ID } from '../interior/types'
 import type { Placed } from '../interior/types'
 import { fmt } from '../geometry'
 import { activeBuildingOf } from './InteriorScene'
+import { BuildingDesigner } from './BuildingDesigner'
 
 function Num({
   label,
@@ -187,6 +188,7 @@ export function InteriorInspector() {
         )}
       </section>
       <BuildingPanel />
+      <BuildingDesigner />
     </>
   )
 }

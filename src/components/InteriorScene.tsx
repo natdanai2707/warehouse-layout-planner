@@ -10,6 +10,7 @@ import { computeDrop, floorIdOf, getWarningIds, shellOpenings, stackHeight, wall
 import type { Frame } from '../interior/placement'
 import type { PlacedRect, Vec2 } from '../types'
 import { InteriorMesh } from './interior3d'
+import { BuildingShell, normalizeSegment } from './BuildingShell'
 import { ArrowHandle } from './gizmo'
 import { beginGesture, gestureRef } from './gestures'
 
@@ -94,7 +95,14 @@ function FloorSlab({ b, frame }: { b: PlacedRect; frame: Frame }) {
  */
 function Perimeter({ b }: { b: PlacedRect }) {
   const iv = b.interior!
-  const eave = iv.shell.eave
+  // a designed building's walls follow its zones; the tallest wall on each
+  // side sets the height of the enclosure you edit against
+  const eave = iv.design
+    ? Math.max(...iv.design.segments.map((sg) => {
+        const n = normalizeSegment(sg)
+        return Math.max(n.eaveL, n.eaveR)
+      }))
+    : iv.shell.eave
   if (iv.shell.mode === 0) return null
   const solid = iv.shell.mode === 2
 
@@ -300,6 +308,9 @@ export function InteriorContent() {
 
       <FloorSlab b={b} frame={frame} />
       <Perimeter b={b} />
+      {/* the designed shell as a ghost on top: you see the real roof shape and
+          zone heights without it ever getting between you and the floor */}
+      <BuildingShell design={iv.design} mode={1} width={b.w} length={b.d} objects={iv.objects} />
       <BayColumns b={b} />
 
       {/* the other storeys, faded right back so the active one reads clearly */}

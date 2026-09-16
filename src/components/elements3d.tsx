@@ -5,6 +5,7 @@ import type { ThreeEvent } from '@react-three/fiber'
 import type { ElementDef, PlacedElement, PlacedPoint, PlacedPolygon, PlacedPolyline, PlacedRect, Vec2 } from '../types'
 import { defById } from '../catalog'
 import { elementBBox, fmt, polygonArea, polygonCentroid, polylineLength } from '../geometry'
+import { BuildingShell } from './BuildingShell'
 
 // Model coords are (x, y) meters with y = south; three.js is (x, up, z).
 // A shape built with (x, -y) and rotated -90° about X lands at (x, 0, y).
@@ -37,10 +38,39 @@ function GableRoof({ w, d, h, color }: { w: number; d: number; h: number; color:
   )
 }
 
+/**
+ * A building that has been designed inside: its real shell, raised on its own
+ * floor slab. Falls back to the plain massing block until a shell design
+ * exists, so a freshly dropped building still reads on the site.
+ */
+function DesignedBuilding({ el, tint }: { el: PlacedRect; tint: string | null }) {
+  const iv = el.interior!
+  const lvl = iv.floorLevel
+  return (
+    <group rotation-y={(-el.rot * Math.PI) / 180}>
+      {/* the raised slab the building sits on */}
+      <mesh position={[0, lvl / 2, 0]} receiveShadow castShadow>
+        <boxGeometry args={[el.w + 0.4, Math.max(0.12, lvl), el.d + 0.4]} />
+        <meshStandardMaterial color={tint ?? '#c8c3b8'} roughness={0.95} />
+      </mesh>
+      <group position={[0, lvl, 0]}>
+        <BuildingShell
+          design={iv.design}
+          mode={iv.shell.mode}
+          width={el.w}
+          length={el.d}
+          objects={iv.objects}
+        />
+      </group>
+    </group>
+  )
+}
+
 function RectMesh({ el, def, tint }: { el: PlacedRect; def?: ElementDef; tint: string | null }) {
   const h = rectEffH(el, def)
   const color = tint ?? el.color
   const opacity = def?.fillOpacity ?? 1
+  if (el.interior?.design && el.interior.shell.mode > 0) return <DesignedBuilding el={el} tint={tint} />
   return (
     <group rotation-y={(-el.rot * Math.PI) / 180}>
       <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
