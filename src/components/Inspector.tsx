@@ -33,6 +33,25 @@ function Num({
   )
 }
 
+// what `radius` and `h` actually mean, per marker shape
+const POINT_RADIUS_LABEL: Record<string, string> = {
+  tree: 'รัศมีพุ่ม (ม.)',
+  tree_cone: 'รัศมีพุ่ม (ม.)',
+  pole: 'รัศมีเสา (ม.)',
+  tank: 'รัศมีถัง (ม.)',
+  tank_h: 'รัศมีถัง (ม.)',
+  elevated: 'รัศมีลูกถัง (ม.)',
+}
+
+const POINT_HEIGHT_LABEL: Record<string, string> = {
+  tree: 'ความสูงต้น (ม.)',
+  tree_cone: 'ความสูงต้น (ม.)',
+  pole: 'ความสูงเสา (ม.)',
+  tank: 'ความสูงถัง (ม.)',
+  tank_h: 'ความยาวถัง (ม.)',
+  elevated: 'ความสูงใต้ถัง (ม.)',
+}
+
 function SingleInspector({ el }: { el: PlacedElement }) {
   const editElement = useStore((s) => s.editElement)
   const def = defById(el.defId)
@@ -71,7 +90,16 @@ function SingleInspector({ el }: { el: PlacedElement }) {
         <div className="insp-grid">
           <Num label="X (ม.)" value={el.x} onChange={(x) => edit({ x })} />
           <Num label="Y (ม.)" value={el.y} onChange={(y) => edit({ y })} />
-          <Num label="รัศมี (ม.)" value={el.radius} min={0.2} step={0.2} onChange={(radius) => edit({ radius })} />
+          <Num label={(def?.pointStyle && POINT_RADIUS_LABEL[def.pointStyle]) ?? 'รัศมี (ม.)'} value={el.radius} min={0.2} step={0.1} onChange={(radius) => edit({ radius })} />
+          {def?.pointStyle && (
+            <Num
+              label={POINT_HEIGHT_LABEL[def.pointStyle] ?? 'สูง (ม.)'}
+              value={el.h ?? def.pointHeight ?? el.radius * 2.4}
+              min={0.3}
+              step={0.1}
+              onChange={(h) => edit({ h })}
+            />
+          )}
         </div>
       )}
       {el.kind === 'polyline' && (
@@ -85,9 +113,22 @@ function SingleInspector({ el }: { el: PlacedElement }) {
         </>
       )}
       {el.kind === 'polygon' && (
-        <div className="insp-readout">
-          พื้นที่ {fmt(elementArea(el))} ตร.ม. · {el.pts.length} จุด — ลากจุดสีน้ำเงินเพื่อแก้รูปทรง
-        </div>
+        <>
+          {(el.h !== undefined || def?.polyHeight !== undefined) && (
+            <div className="insp-grid">
+              <Num
+                label="ความสูงใต้หลังคา (ม.)"
+                value={el.h ?? def?.polyHeight ?? 3}
+                min={2}
+                step={0.1}
+                onChange={(h) => edit({ h })}
+              />
+            </div>
+          )}
+          <div className="insp-readout">
+            พื้นที่ {fmt(elementArea(el))} ตร.ม. · {el.pts.length} จุด — ลากจุดสีน้ำเงินเพื่อแก้รูปทรง
+          </div>
+        </>
       )}
     </>
   )

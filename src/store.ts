@@ -339,12 +339,12 @@ export const useStore = create<SiteState>()(
       } else if (def.geom === 'point') {
         el = {
           kind: 'point', id: uid(), defId: def.id, label: def.labelTh, layer: def.layer, color: def.color,
-          x: pos.x, y: pos.y, radius: def.radius ?? 1,
+          x: pos.x, y: pos.y, radius: def.radius ?? 1, h: def.pointHeight,
         }
       } else if (def.geom === 'polygon') {
         el = {
           kind: 'polygon', id: uid(), defId: def.id, label: def.labelTh, layer: def.layer, color: def.color,
-          pts: makeSeedPolygon(pos, def.polySize ?? { x: 10, y: 10 }),
+          pts: makeSeedPolygon(pos, def.polySize ?? { x: 10, y: 10 }), h: def.polyHeight,
         }
       } else {
         return
@@ -381,7 +381,7 @@ export const useStore = create<SiteState>()(
       const base = { id: uid(), defId: def.id, label: def.labelTh, layer: def.layer, color: def.color }
       const el: PlacedElement =
         def.geom === 'polygon'
-          ? { ...base, kind: 'polygon', pts: tool.pts }
+          ? { ...base, kind: 'polygon', pts: tool.pts, h: def.polyHeight }
           : { ...base, kind: 'polyline', pts: tool.pts, width: def.lineWidth ?? 1 }
       set({ elements: [...get().elements, el], tool: { type: 'select' }, ghost: null, selectedIds: [el.id] })
     },

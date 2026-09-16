@@ -28,10 +28,19 @@ export interface ElementDef {
   h?: number // rect: default height (m) for the 3D block
   roof?: boolean // rect: draw a low gable roof on top (warehouses)
   radius?: number // point: marker radius (m)
-  pointStyle?: 'tree' | 'pole' | 'tank' | 'elevated' // point: 3D shape variant
+  /** point: 3D shape variant. 'tank' stands upright, 'tank_h' lies on saddles,
+   *  'elevated' is a ball on a tower — both use `h` for the second dimension. */
+  pointStyle?: 'tree' | 'tree_cone' | 'pole' | 'tank' | 'tank_h' | 'elevated'
+  pointHeight?: number // point: default `h` — tower height, tank length, …
   lineWidth?: number // polyline: default width (m)
   lineHeight?: number // polyline: extrusion height (m); fences are tall, roads flat
   polySize?: Vec2 // polygon: default bounding size of the seeded shape (m)
+  /** polygon: lift it into a canopy roof at this height (m) instead of lying flat. */
+  polyHeight?: number
+  /** polygon: stand a post under each corner (carports, walkway roofs). */
+  posts?: boolean
+  /** Ground finish drawn on the surface — a procedural texture, no image files. */
+  surface?: 'concrete' | 'gravel' | 'grass'
   fillOpacity?: number // override the default fill opacity
   showArea?: boolean // print the footprint area on the element
   flowArrows?: boolean // polyline: draw flow-direction arrows (drains)
@@ -70,6 +79,7 @@ export interface PlacedRect extends PlacedBase {
 export interface PlacedPolygon extends PlacedBase {
   kind: 'polygon'
   pts: Vec2[] // absolute world coordinates
+  h?: number // canopy roofs: height of the underside (m); flat areas ignore it
 }
 
 export interface PlacedPolyline extends PlacedBase {
@@ -83,6 +93,9 @@ export interface PlacedPoint extends PlacedBase {
   x: number
   y: number
   radius: number // display radius (m)
+  /** The second dimension: tower height for an elevated tank, body length for
+   *  a horizontal one, overall height for a tree or a pole. */
+  h?: number
 }
 
 export type PlacedElement = PlacedRect | PlacedPolygon | PlacedPolyline | PlacedPoint
